@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNAP Coin MSG</title>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- HEADER -->
+        <header id="header">
+            <div id="header-left">
+                <span class="logo">SNAP</span>
+                <span class="logo-sub">MSG</span>
+            </div>
+            <div id="header-center">
+                <div id="status-app">
+                    <span id="app-status-dot" class="status-dot disconnected"></span>
+                    <span id="app-status-label">app: disconnected</span>
+                </div>
+                <div class="status-divider">|</div>
+                <div id="status-node">
+                    <span id="node-status-dot" class="status-dot no-node"></span>
+                    <span id="node-status-label">node: unknown</span>
+                </div>
+            </div>
+            <div id="header-right">
+                <select id="active-wallet-select">
+                    <option value="">select wallet</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <div id="main">
+
+            <!-- LEFT PANEL: contacts + wallets -->
+            <div id="panel-left">
+                <div class="panel-section">
+                    <div class="panel-title">WALLETS</div>
+                    <div id="wallet-list"></div>
+                    <button class="btn-add" id="btn-add-wallet">+ add wallet</button>
+                </div>
+                <div class="panel-section">
+                    <div class="panel-title">CONTACTS</div>
+                    <div id="contact-list"></div>
+                    <button class="btn-add" id="btn-add-contact">+ add contact</button>
+                </div>
+                <div class="panel-section">
+                    <div class="panel-title">WATCHING</div>
+                    <div id="watch-list"></div>
+                    <button class="btn-add" id="btn-add-watch">+ add pair</button>
+                </div>
+            </div>
+
+            <!-- CENTER PANEL: conversation -->
+            <div id="panel-center">
+                <div id="conversation-header">
+                    <div id="convo-wallet-a" class="convo-address">-</div>
+                    <div class="convo-arrow">⇄</div>
+                    <div id="convo-wallet-b" class="convo-address">-</div>
+                </div>
+
+                <div id="ledger-tabs">
+                    <button class="ledger-tab active" data-tab="decoded">DECODED</button>
+                    <button class="ledger-tab" data-tab="raw">RAW</button>
+                    <button class="ledger-tab" data-tab="both">BOTH</button>
+                </div>
+
+                <div id="ledger-decoded" class="ledger active">
+                    <div class="ledger-title">DECODED CONVERSATION</div>
+                    <div id="decoded-entries"></div>
+                </div>
+
+                <div id="ledger-raw" class="ledger">
+                    <div class="ledger-title">RAW LEDGER</div>
+                    <div id="raw-entries"></div>
+                </div>
+
+                <div id="compose-area">
+                    <div id="compose-tokens"></div>
+                    <div id="compose-controls">
+                        <button id="btn-clear" class="btn-compose">CLEAR</button>
+                        <button id="btn-send" class="btn-compose btn-send">SEND</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: keyboard -->
+            <div id="panel-right">
+                <div class="panel-title">KEYBOARD</div>
+                <div id="keyboard-tabs"></div>
+                <div id="keyboard-keys"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal-box">
+            <div id="modal-title"></div>
+            <div id="modal-body"></div>
+            <div id="modal-controls">
+                <button id="modal-cancel" class="btn-compose">CANCEL</button>
+                <button id="modal-confirm" class="btn-compose btn-send">CONFIRM</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
