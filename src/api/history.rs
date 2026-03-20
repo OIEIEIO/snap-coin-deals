@@ -1,8 +1,8 @@
 // -----------------------------------------------------------------------------
 // File: src/api/history.rs
 // Project: snap-coin-msg
-// Description: Fetch opcode history from opcode genesis height forward only
-// Version: 0.3.0
+// Description: Fetch full wallet transaction history from opcode genesis height
+// Version: 0.4.0
 // -----------------------------------------------------------------------------
 
 use axum::{extract::State, http::StatusCode, Json};
@@ -35,6 +35,7 @@ pub struct HistoryEntry {
     pub category:    String,
     pub meaning:     String,
     pub height:      u64,
+    pub is_opcode:   bool,
 }
 
 // Send one request, read one response
@@ -44,8 +45,7 @@ async fn node_request(stream: &mut TcpStream, req: Request) -> Result<Response, 
     Response::decode_from_stream(stream).await.map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
 }
 
-// Fetch tx IDs stopping when we hit a tx older than genesis height
-// Returns ids newest-first as the node returns them, stops early at genesis
+// Fetch tx IDs from genesis height forward — stops early once below genesis
 async fn fetch_tx_ids_from_genesis(
     stream:         &mut TcpStream,
     stream_info:    &mut TcpStream,
@@ -60,7 +60,6 @@ async fn fetch_tx_ids_from_genesis(
         match node_request(stream, req).await? {
             Response::TransactionsOfAddress { transactions, next_page } => {
                 for tx_id in transactions {
-                    // fetch height via TransactionAndInfo
                     let info_req = Request::TransactionAndInfo { transaction_id: tx_id.clone() };
                     let height = match node_request(stream_info, info_req).await? {
                         Response::TransactionAndInfo { transaction_and_info: Some(info) } => {
@@ -69,7 +68,6 @@ async fn fetch_tx_ids_from_genesis(
                         _ => continue,
                     };
 
-                    // stop entirely once we go below genesis
                     if height < genesis_height {
                         break 'pages;
                     }
@@ -112,6 +110,7 @@ pub async fn get_history(
     ).await?;
 
     let mut entries: Vec<HistoryEntry> = Vec::new();
+    let dict_entries = state.dictionary.all_entries();
 
     for (tx_id, height) in tx_ids {
         let req = Request::Transaction { transaction_id: tx_id };
@@ -125,35 +124,50 @@ pub async fn get_history(
                 for output in &tx.outputs {
                     let receiver = output.receiver.dump_base36();
 
-                    let involves_wallet = sender == addr_str || receiver == addr_str;
-                    if !involves_wallet { continue; }
+                    // only include outputs directly to or from this wallet
+                    // if sender: only outputs NOT back to self (excludes change)
+                    // if receiver: only outputs where this wallet is the receiver
+                    let is_sender   = sender == addr_str;
+                    let is_receiver = receiver == addr_str;
 
-                    let amount_str = format!("0.{:08}", output.amount);
+                    if is_sender && receiver == addr_str { continue; } // skip change back to self
+                    if !is_sender && !is_receiver        { continue; } // skip unrelated outputs
 
-                    let opcode = state.dictionary
-                        .all_entries()
+                    let amount_str = format!("{}.{:08}", output.amount / 100_000_000, output.amount % 100_000_000);
+
+                    // check if this amount matches a dictionary opcode
+                    let opcode_match = dict_entries
                         .iter()
                         .find(|(_, e)| e.amount == amount_str)
                         .map(|(k, e)| (k.clone(), e.category.clone(), e.meaning.clone()));
 
-                    if let Some((token, category, meaning)) = opcode {
-                        entries.push(HistoryEntry {
-                            from_wallet: sender.clone(),
-                            to_wallet:   receiver.clone(),
-                            amount:      amount_str,
-                            token,
-                            category,
-                            meaning,
-                            height,
-                        });
-                    }
+                    let (token, category, meaning, is_opcode) = match opcode_match {
+                        Some((t, c, m)) => (t, c, m, true),
+                        None => (
+                            amount_str.clone(),
+                            "transfer".to_string(),
+                            "SNAP transfer".to_string(),
+                            false,
+                        ),
+                    };
+
+                    entries.push(HistoryEntry {
+                        from_wallet: sender.clone(),
+                        to_wallet:   receiver.clone(),
+                        amount: amount_str,
+                        token,
+                        category,
+                        meaning,
+                        height,
+                        is_opcode,
+                    });
                 }
             }
             _ => continue,
         }
     }
 
-    // sort by height ascending - oldest first, frontend reverses for display
+    // sort ascending — oldest first, frontend prepends so newest ends up on top
     entries.sort_by_key(|e| e.height);
 
     Ok(Json(HistoryResponse {
