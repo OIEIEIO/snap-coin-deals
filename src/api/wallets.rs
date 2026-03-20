@@ -1,17 +1,17 @@
 // -----------------------------------------------------------------------------
 // File: src/api/wallets.rs
 // Project: snap-coin-msg
-// Description: REST endpoints for wallet management - add, create, list
-// Version: 0.2.0
+// Description: REST endpoints for wallet management - add, create, list, send-snap
+// Version: 0.3.0
 // -----------------------------------------------------------------------------
 
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
-use snap_coin::crypto::keys::Private;
+use snap_coin::crypto::keys::{Private, Public};
 use std::sync::Arc;
 use crate::app_state::AppState;
 use crate::wallet::store::{WalletEntry, WalletsFile};
-use crate::wallet::pin::encrypt_key;
+use crate::wallet::pin::{encrypt_key, decrypt_key};
 
 #[derive(Debug, Serialize)]
 pub struct WalletsResponse {
@@ -24,7 +24,7 @@ pub struct WalletItem {
     pub label:    String,
     pub address:  String,
     pub can_send: bool,
-    pub column:   String,   // "left" or "right"
+    pub column:   String,
     pub order:    u32,
 }
 
@@ -63,7 +63,23 @@ pub struct CreateWalletResponse {
 #[derive(Debug, Deserialize)]
 pub struct MoveWalletRequest {
     pub id:     String,
-    pub column: String,   // "left" or "right"
+    pub column: String,
+}
+
+// --- SEND SNAP (plain transfer, no opcode) ---
+
+#[derive(Debug, Deserialize)]
+pub struct SendSnapRequest {
+    pub from_wallet_id: String,
+    pub to_address:     String,
+    pub amount:         f64,
+    pub pin:            String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SendSnapResponse {
+    pub status: String,
+    pub amount: String,
 }
 
 pub async fn list_wallets(
@@ -123,7 +139,6 @@ pub async fn create_wallet(
     let mut file = WalletsFile::load("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // generate new random keypair
     let private    = Private::new_random();
     let public     = private.to_public();
     let address    = public.dump_base36();
@@ -149,7 +164,7 @@ pub async fn create_wallet(
         id:          req.id,
         label:       req.label,
         address,
-        private_key: priv_b36,   // shown once — frontend must display prominently
+        private_key: priv_b36,
     }))
 }
 
@@ -167,6 +182,46 @@ pub async fn move_wallet(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
+}
+
+pub async fn send_snap(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SendSnapRequest>,
+) -> Result<Json<SendSnapResponse>, StatusCode> {
+
+    // load and decrypt wallet key
+    let wallets = WalletsFile::load("config/wallets.json")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let wallet = wallets.get(&req.from_wallet_id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let private_key_str = decrypt_key(&wallet.encrypted_key, &req.pin)
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+
+    let from_private = Private::new_from_base36(&private_key_str)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let to_public = Public::new_from_base36(&req.to_address)
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    // convert decimal SNAP to 8-decimal atomic units
+    let atomic = (req.amount * 100_000_000.0).round() as u64;
+    if atomic == 0 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    state.outbound
+        .submit_withdrawal(vec![(to_public, atomic)], from_private)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::info!("snap send: {} atomic units from {}", atomic, &wallet.address[..8]);
+
+    Ok(Json(SendSnapResponse {
+        status: "submitted".to_string(),
+        amount: format!("{:.8}", req.amount),
+    }))
 }
 
 // -----------------------------------------------------------------------------

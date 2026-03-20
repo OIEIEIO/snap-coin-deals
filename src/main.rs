@@ -2,7 +2,7 @@
 // File: src/main.rs
 // Project: snap-coin-msg
 // Description: Axum server bootstrap, routes, startup
-// Version: 0.10.0
+// Version: 0.11.0
 // -----------------------------------------------------------------------------
 
 #![allow(dead_code)]
@@ -86,11 +86,12 @@ async fn main() {
         .route("/api/send",                     post(api::send::send_message))
         .route("/api/conversations",            post(api::conversations::get_conversation))
         .route("/api/conversations/register",   post(api::conversations::register_pair))
-        .route("/api/history",                   post(api::history::get_history))
+        .route("/api/history",                  post(api::history::get_history))
         .route("/api/wallets",                  get(api::wallets::list_wallets))
         .route("/api/wallets/add",              post(api::wallets::add_wallet))
         .route("/api/wallets/create",           post(api::wallets::create_wallet))
         .route("/api/wallets/move",             post(api::wallets::move_wallet))
+        .route("/api/wallets/send-snap",        post(api::wallets::send_snap))
         .route("/api/contacts",                 get(api::contacts::list_contacts))
         .route("/api/contacts/add",             post(api::contacts::add_contact))
         .route("/api/watchlist",                get(api::watchlist::list_watchlist))
@@ -114,5 +115,5 @@ async fn main() {
 // -----------------------------------------------------------------------------
 // File: src/main.rs
 // Project: snap-coin-msg
-// Created: 2026-03-19
+// Created: 2026-03-19 | Updated: 2026-03-20
 // -----------------------------------------------------------------------------
