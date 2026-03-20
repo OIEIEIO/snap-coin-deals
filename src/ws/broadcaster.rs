@@ -17,11 +17,12 @@ pub async fn handle_socket(socket: WebSocket, tx: broadcast::Sender<WsEvent>) {
     let send_task = tokio::spawn(async move {
         while let Ok(event) = rx.recv().await {
             let msg = serde_json::json!({
-                "from": event.from_wallet,
-                "to": event.to_wallet,
-                "amount": event.amount,
+                "from":     event.from_wallet,
+                "to":       event.to_wallet,
+                "amount":   event.amount,
                 "category": event.category,
-                "meaning": event.meaning,
+                "meaning":  event.meaning,
+                "pending":  event.pending,
             });
             if sender
                 .send(Message::Text(msg.to_string().into()))

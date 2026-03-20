@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- =============================================================================
+     File: static/index.html
+     Project: snap-coin-msg
+     Description: Multi-wallet panel layout - left/right columns + chain events
+     Version: 0.13.0
+============================================================================= -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -27,104 +33,65 @@
                 </div>
             </div>
             <div id="header-right">
-                <select id="active-wallet-select">
-                    <option value="">select wallet</option>
-                </select>
+                <button id="btn-decode-toggle" class="btn-toggle active">DECODE</button>
             </div>
         </header>
 
-        <!-- MAIN LAYOUT -->
+        <!-- THREE COLUMN LAYOUT -->
         <div id="main">
 
-            <!-- LEFT PANEL -->
-            <div id="panel-left">
-                <div class="panel-section">
-                    <div class="panel-title">WALLETS</div>
-                    <div id="wallet-list"></div>
-                    <button class="btn-add" id="btn-add-wallet">+ add wallet</button>
-                </div>
-                <div class="panel-section">
-                    <div class="panel-title">CONTACTS</div>
-                    <div id="contact-list"></div>
-                    <button class="btn-add" id="btn-add-contact">+ add contact</button>
-                </div>
-                <div class="panel-section">
-                    <div class="panel-title">WATCHING</div>
-                    <div id="watch-list"></div>
-                    <button class="btn-add" id="btn-add-watch">+ add pair</button>
-                </div>
+            <!-- LEFT COLUMN -->
+            <div class="wallet-column" id="col-left">
+                <div class="col-wallets" id="wallets-left"></div>
             </div>
 
-            <!-- CENTER PANEL -->
-            <div id="panel-center">
+            <!-- CENTER COLUMN -->
+            <div id="col-center">
 
-                <!-- three columns -->
-                <div id="convo-columns">
-
-                    <!-- wallet a -->
-                    <div class="convo-col" id="col-a">
-                        <div class="col-header" id="col-header-a">
-                            <div class="col-name" id="col-name-a">WALLET A</div>
-                            <div class="col-balance" id="col-balance-a"></div>
-                        </div>
-                        <div class="col-entries" id="col-entries-a"></div>
-                    </div>
-
-                    <!-- chain events -->
-                    <div class="convo-col" id="col-chain">
-                        <div class="col-header" id="col-header-chain">
-                            <div class="col-name">CHAIN EVENTS</div>
-                            <div id="chain-height-display">
-                                <div id="chain-height-label">CURRENT HEIGHT</div>
-                                <div id="chain-height">-</div>
-                            </div>
-                        </div>
-                        <div class="col-entries" id="col-entries-chain"></div>
-                    </div>
-
-                    <!-- wallet b -->
-                    <div class="convo-col" id="col-b">
-                        <div class="col-header" id="col-header-b">
-                            <div class="col-name" id="col-name-b">WALLET B</div>
-                            <div class="col-balance" id="col-balance-b"></div>
-                        </div>
-                        <div class="col-entries" id="col-entries-b"></div>
-                    </div>
-
+                <!-- fixed top header - height only -->
+                <div id="center-top-header">
+                    <span id="chain-height-label">HEIGHT</span>
+                    <span id="chain-height">-</span>
                 </div>
 
-                <!-- keyboard -->
-                <div id="keyboard-area">
-                    <div id="keyboard-tabs"></div>
-                    <div id="keyboard-keys"></div>
+                <!-- WORKSPACE section -->
+                <div class="center-section" id="section-workspace">
+                    <div class="center-section-header">
+                        <span class="center-section-title">WORKSPACE</span>
+                        <button class="btn-section-toggle" id="btn-toggle-workspace">EXPAND</button>
+                    </div>
+                    <div class="center-section-body hidden" id="body-workspace">
+                        <div id="workspace-tabs">
+                            <button class="workspace-tab active" data-tab="contacts">CONTACTS</button>
+                            <button class="workspace-tab" data-tab="import-wallet">IMPORT WALLET</button>
+                            <button class="workspace-tab" data-tab="create-wallet">CREATE WALLET</button>
+                        </div>
+                        <div id="workspace-body"></div>
+                    </div>
                 </div>
 
-                <!-- compose -->
-                <div id="compose-area">
-                    <div id="compose-tokens"></div>
-                    <div id="compose-controls">
-                        <button id="btn-clear" class="btn-compose">CLEAR</button>
-                        <button id="btn-send" class="btn-compose btn-send">SEND</button>
+                <!-- EVENTS section -->
+                <div class="center-section" id="section-events">
+                    <div class="center-section-header">
+                        <span class="center-section-title">EVENTS</span>
+                        <button class="btn-section-toggle" id="btn-toggle-events">EXPAND</button>
+                    </div>
+                    <div class="center-section-body hidden" id="body-events">
+                        <div id="col-entries-chain"></div>
                     </div>
                 </div>
 
             </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="wallet-column" id="col-right">
+                <div class="col-wallets" id="wallets-right"></div>
+            </div>
+
         </div>
     </div>
 
-    <!-- MODALS -->
-    <div id="modal-overlay" class="hidden">
-        <div id="modal-box">
-            <div id="modal-title"></div>
-            <div id="modal-body"></div>
-            <div id="modal-controls">
-                <button id="modal-cancel" class="btn-compose">CANCEL</button>
-                <button id="modal-confirm" class="btn-compose btn-send">CONFIRM</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- PIN -->
+    <!-- PIN OVERLAY -->
     <div id="pin-overlay" class="hidden">
         <div id="pin-box">
             <div id="pin-title">ENTER WALLET PIN</div>
@@ -139,3 +106,8 @@
     <script src="app.js"></script>
 </body>
 </html>
+<!-- =============================================================================
+     File: static/index.html
+     Project: snap-coin-msg
+     Created: 2026-03-19 | Updated: 2026-03-20
+============================================================================= -->

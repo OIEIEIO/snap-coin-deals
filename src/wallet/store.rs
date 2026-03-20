@@ -1,8 +1,8 @@
 // -----------------------------------------------------------------------------
 // File: src/wallet/store.rs
 // Project: snap-coin-msg
-// Description: Load and save encrypted wallet keys with per wallet PIN
-// Version: 0.1.0
+// Description: Load and save encrypted wallet keys with column layout state
+// Version: 0.2.0
 // -----------------------------------------------------------------------------
 
 use serde::{Deserialize, Serialize};
@@ -12,9 +12,11 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletEntry {
-    pub label: String,
-    pub address: String,
+    pub label:         String,
+    pub address:       String,
     pub encrypted_key: String,
+    pub column:        Option<String>,   // "left" or "right"
+    pub order:         Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,9 +40,7 @@ impl WalletsFile {
     }
 
     pub fn empty() -> Self {
-        Self {
-            wallets: HashMap::new(),
-        }
+        Self { wallets: HashMap::new() }
     }
 
     pub fn add(&mut self, id: String, entry: WalletEntry) {
@@ -53,13 +53,29 @@ impl WalletsFile {
 
     pub fn list(&self) -> Vec<(&String, &WalletEntry)> {
         let mut entries: Vec<_> = self.wallets.iter().collect();
-        entries.sort_by(|a, b| a.1.label.cmp(&b.1.label));
+        entries.sort_by_key(|(_, w)| w.order.unwrap_or(0));
         entries
+    }
+
+    pub fn next_order(&self) -> u32 {
+        self.wallets
+            .values()
+            .filter_map(|w| w.order)
+            .max()
+            .unwrap_or(0) + 1
+    }
+
+    pub fn set_column(&mut self, id: &str, column: &str) -> Result<(), String> {
+        let entry = self.wallets
+            .get_mut(id)
+            .ok_or_else(|| format!("Wallet {} not found", id))?;
+        entry.column = Some(column.to_string());
+        Ok(())
     }
 }
 
 // -----------------------------------------------------------------------------
 // File: src/wallet/store.rs
 // Project: snap-coin-msg
-// Created: 2026-03-19
+// Created: 2026-03-19 | Updated: 2026-03-20
 // -----------------------------------------------------------------------------

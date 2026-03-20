@@ -45,6 +45,7 @@ impl OnConfirmation for OpcodeConfirmationHandler {
                     amount:      format!("0.{:08}", raw),
                     meaning:     opcode.meaning.clone(),
                     category:    opcode.category.clone(),
+                    pending:     false,
                 };
                 let _ = self.tx.send(event);
                 tracing::info!(

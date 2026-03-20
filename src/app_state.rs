@@ -23,21 +23,23 @@ pub struct WsEvent {
     pub amount:      String,
     pub meaning:     String,
     pub category:    String,
+    pub pending:     bool,   // true = mempool, false = confirmed
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    pub dictionary:        Arc<Dictionary>,
-    pub tx:                broadcast::Sender<WsEvent>,
-    pub chain_tx:          broadcast::Sender<ChainEventMsg>,
-    pub outbound:          Arc<WithdrawalPaymentProcessor<ApiChainInteraction>>,
-    pub inbound:           Arc<InboundWatcher>,
-    pub watched_addresses: Arc<RwLock<HashSet<String>>>,
-    pub node_addr:         SocketAddr,
+    pub dictionary:            Arc<Dictionary>,
+    pub tx:                    broadcast::Sender<WsEvent>,
+    pub chain_tx:              broadcast::Sender<ChainEventMsg>,
+    pub outbound:              Arc<WithdrawalPaymentProcessor<ApiChainInteraction>>,
+    pub inbound:               Arc<InboundWatcher>,
+    pub watched_addresses:     Arc<RwLock<HashSet<String>>>,
+    pub node_addr:             SocketAddr,
+    pub opcode_genesis_height: u64,
 }
 
 impl AppState {
-    pub async fn new(dictionary: Dictionary, node_addr: SocketAddr) -> Self {
+    pub async fn new(dictionary: Dictionary, node_addr: SocketAddr, opcode_genesis_height: u64) -> Self {
         let (tx, _)       = broadcast::channel(256);
         let (chain_tx, _) = broadcast::channel(512);
 
@@ -58,20 +60,25 @@ impl AppState {
             tx.clone(),
         ).await;
 
+        let watched_addresses = Arc::new(RwLock::new(HashSet::new()));
+
         start_chain_event_broadcaster(
             node_addr,
             chain_tx.clone(),
             Arc::new(dictionary.clone()),
+            tx.clone(),
+            Arc::clone(&watched_addresses),
         ).await;
 
         Self {
-            dictionary:        Arc::new(dictionary),
+            dictionary:            Arc::new(dictionary),
             tx,
             chain_tx,
-            outbound:          processor,
-            inbound:           Arc::new(inbound),
-            watched_addresses: Arc::new(RwLock::new(HashSet::new())),
+            outbound:              processor,
+            inbound:               Arc::new(inbound),
+            watched_addresses,
             node_addr,
+            opcode_genesis_height,
         }
     }
 
