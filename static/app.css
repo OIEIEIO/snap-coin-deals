@@ -313,6 +313,55 @@ html, body {
     flex-shrink: 0;
 }
 
+/* SNAP SEND ROW */
+.wp-snap-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.snap-amount-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 11px;
+    padding: 4px 8px;
+    min-width: 0;
+}
+.snap-amount-input:focus { outline: none; border-color: var(--text-label); }
+.snap-amount-input::-webkit-inner-spin-button,
+.snap-amount-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.snap-amount-input:-webkit-autofill,
+.snap-amount-input:-webkit-autofill:hover,
+.snap-amount-input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0px 1000px var(--bg) inset;
+    -webkit-text-fill-color: var(--text);
+    caret-color: var(--text);
+}
+
+.btn-snap-send {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border-radius: 4px;
+    white-space: nowrap;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.btn-snap-send:hover { background: var(--accent); color: #000; }
+
 /* KEYBOARD */
 .wp-keyboard {
     border-top: 2px solid var(--border);
@@ -675,6 +724,118 @@ html, body {
 }
 
 /* =============================================================================
+   CREATE WALLET OVERLAY MODAL
+============================================================================= */
+.cw-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.cw-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    width: 560px;
+    max-width: 90vw;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cw-modal-title {
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: var(--text-label);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.cw-key-warning {
+    background: rgba(224, 82, 82, 0.15);
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 10px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.cw-field-label {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    color: var(--text-label);
+    margin-bottom: -6px;
+}
+
+.cw-field-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.cw-field-value {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--text);
+    word-break: break-all;
+    user-select: all;
+    line-height: 1.5;
+}
+
+.cw-key-accent { color: var(--accent); }
+
+.cw-copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-label);
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border-radius: 4px;
+    white-space: nowrap;
+    transition: all 0.15s;
+    align-self: center;
+}
+.cw-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.cw-confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.cw-confirm-label {
+    font-size: 11px;
+    color: var(--text-label);
+    cursor: pointer;
+    user-select: none;
+}
+
+.cw-done-btn { align-self: flex-end; }
+.cw-done-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* =============================================================================
    WALLET ENTRIES
 ============================================================================= */
 .wallet-entry {
@@ -698,6 +859,7 @@ html, body {
 .we-tx    { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: var(--red);   flex-shrink: 0; min-width: 18px; }
 .we-rx    { font-size: 9px; font-weight: bold; letter-spacing: 1px; color: var(--green); flex-shrink: 0; min-width: 18px; }
 .we-token { font-size: 12px; font-weight: bold; color: var(--text); letter-spacing: 1px; }
+.we-token-snap { color: var(--accent); font-size: 11px; letter-spacing: 0; }
 
 .we-meta {
     display: flex;

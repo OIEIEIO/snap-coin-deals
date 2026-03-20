@@ -43,7 +43,10 @@ function connectChainWs() {
     ws.onmessage = (e) => {
         const ev = JSON.parse(e.data);
         appendChainEvent(ev);
-        if (ev.event_type === 'BLOCK' && ev.height) updateHeightDisplay(ev.height);
+        if (ev.event_type === 'BLOCK' && ev.height) {
+            updateHeightDisplay(ev.height);
+            onBlock();
+        }
     };
     state.chainWs = ws;
 }
@@ -199,9 +202,9 @@ function renderWorkspaceCreateWallet(body) {
                 </select>
             </div>
             <button class="btn-ws-submit" id="ws-do-create">CREATE WALLET</button>
-            <div id="ws-create-result" class="hidden"></div>
         </div>
     `;
+
     document.getElementById('ws-do-create').onclick = async () => {
         const res = await fetch('/api/wallets/create', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -216,13 +219,51 @@ function renderWorkspaceCreateWallet(body) {
         const data = await res.json();
         await loadWallets();
 
-        const result = document.getElementById('ws-create-result');
-        result.classList.remove('hidden');
-        result.innerHTML = `
-            <div class="ws-key-warning">⚠ SAVE THIS PRIVATE KEY — SHOWN ONCE</div>
-            <div class="ws-key-address">address: ${shortAddr(data.address)}</div>
-            <div class="ws-key-value">${data.private_key}</div>
+        // overlay modal
+        const overlay = document.createElement('div');
+        overlay.className = 'cw-overlay';
+        overlay.innerHTML = `
+            <div class="cw-modal">
+                <div class="cw-modal-title">WALLET CREATED</div>
+                <div class="cw-key-warning">⚠ SAVE YOUR PRIVATE KEY — THIS IS THE ONLY TIME IT WILL BE SHOWN</div>
+
+                <div class="cw-field-label">WALLET ADDRESS</div>
+                <div class="cw-field-row">
+                    <div class="cw-field-value" id="cw-address">${data.address}</div>
+                    <button class="cw-copy-btn" id="cw-copy-address">COPY</button>
+                </div>
+
+                <div class="cw-field-label">PRIVATE KEY</div>
+                <div class="cw-field-row">
+                    <div class="cw-field-value cw-key-accent" id="cw-privkey">${data.private_key}</div>
+                    <button class="cw-copy-btn" id="cw-copy-key">COPY</button>
+                </div>
+
+                <div class="cw-confirm-row">
+                    <input type="checkbox" id="cw-confirm-check">
+                    <label for="cw-confirm-check" class="cw-confirm-label">I have saved my private key</label>
+                </div>
+                <button class="btn-ws-submit cw-done-btn" id="cw-done" disabled>DONE</button>
+            </div>
         `;
+        document.body.appendChild(overlay);
+
+        document.getElementById('cw-copy-address').onclick = () => {
+            navigator.clipboard.writeText(data.address);
+            document.getElementById('cw-copy-address').textContent = 'COPIED';
+            setTimeout(() => document.getElementById('cw-copy-address').textContent = 'COPY', 1500);
+        };
+        document.getElementById('cw-copy-key').onclick = () => {
+            navigator.clipboard.writeText(data.private_key);
+            document.getElementById('cw-copy-key').textContent = 'COPIED';
+            setTimeout(() => document.getElementById('cw-copy-key').textContent = 'COPY', 1500);
+        };
+        document.getElementById('cw-confirm-check').onchange = (e) => {
+            document.getElementById('cw-done').disabled = !e.target.checked;
+        };
+        document.getElementById('cw-done').onclick = () => {
+            document.body.removeChild(overlay);
+        };
     };
 }
 
@@ -294,13 +335,17 @@ function prependToLedger(ledgerId, el) {
 // -----------------------------------------------------------------------------
 function createEntry(entry, direction, pending = false, counterparty = '') {
     const el          = document.createElement('div');
-    const token       = entry.token || entry.display || entry.meaning || entry.amount;
+    const isOpcode    = entry.is_opcode !== false && entry.category !== 'transfer';
+    const token       = isOpcode
+        ? (entry.token || entry.display || entry.meaning || entry.amount)
+        : entry.amount;
     const status      = pending ? 'PENDING' : 'CONFIRMED';
     const statusClass = pending ? 'pending' : 'confirmed';
     const isTx        = direction === 'outbound';
     const labelClass  = isTx ? 'we-tx' : 'we-rx';
     const addrLabel   = isTx ? 'to' : 'from';
     const addrDisplay = counterparty ? resolveContact(counterparty) : '';
+    const tokenClass  = isOpcode ? 'we-token' : 'we-token we-token-snap';
 
     el.className      = `wallet-entry ${statusClass}`;
     el.dataset.amount = entry.amount;
@@ -310,7 +355,7 @@ function createEntry(entry, direction, pending = false, counterparty = '') {
         el.innerHTML = `
             <div class="we-main">
                 <span class="${labelClass}">${isTx ? 'TX' : 'RX'}</span>
-                <span class="we-token">${token}</span>
+                <span class="${tokenClass}">${token}</span>
             </div>
             <div class="we-meta">
                 ${addrDisplay ? `<span class="we-counterparty">${addrLabel}: ${addrDisplay}</span>` : ''}
@@ -320,11 +365,11 @@ function createEntry(entry, direction, pending = false, counterparty = '') {
         el.innerHTML = `
             <div class="we-main">
                 <span class="${labelClass}">${isTx ? 'TX' : 'RX'}</span>
-                <span class="we-token">${token}</span>
+                <span class="${tokenClass}">${token}</span>
             </div>
             <div class="we-meta">
-                <span class="we-amount">${entry.amount}</span>
-                <span class="we-category">[${(entry.category || '').toUpperCase()}]</span>
+                ${isOpcode ? `<span class="we-amount">${entry.amount}</span>` : ''}
+                <span class="we-category">[${(entry.category || 'transfer').toUpperCase()}]</span>
                 ${addrDisplay ? `<span class="we-counterparty">${addrLabel}: ${addrDisplay}</span>` : ''}
                 <span class="we-status ${statusClass}">${status}</span>
             </div>`;
@@ -409,9 +454,9 @@ async function loadWalletHistory(walletId, address) {
         const data = await res.json();
         ledger.innerHTML = '';
 
-        // newest at top - prepend in reverse order
-        [...data.entries].reverse().forEach(e => {
-            const entry  = { token: e.token, amount: e.amount, category: e.category, meaning: e.meaning };
+        // oldest-first from API, prepend each so newest ends up on top
+        data.entries.forEach(e => {
+            const entry  = { token: e.token, amount: e.amount, category: e.category, meaning: e.meaning, is_opcode: e.is_opcode };
             const isTx   = e.from_wallet === address;
             const cp     = isTx ? e.to_wallet : e.from_wallet;
             prependToLedger(`ledger-${walletId}`, createEntry(entry, isTx ? 'outbound' : 'inbound', false, cp));
@@ -543,6 +588,16 @@ function buildWalletPanel(w, col, expanded) {
             </select>
         `;
         body.appendChild(toRow);
+
+        // SNAP send row
+        const snapRow = document.createElement('div');
+        snapRow.className = 'wp-snap-row';
+        snapRow.innerHTML = `
+            <span class="routing-label">SNAP</span>
+            <input class="snap-amount-input" id="snap-amount-${w.id}" type="text" inputmode="decimal" placeholder="amount e.g. 1.5">
+            <button class="btn-snap-send" id="snap-send-${w.id}">SEND SNAP</button>
+        `;
+        body.appendChild(snapRow);
 
         // keyboard
         const kbArea = document.createElement('div');
@@ -702,7 +757,7 @@ function wireComposeButtons(walletId, wallet) {
         renderWalletCompose(walletId);
     };
 
-    // SEND
+    // SEND OPCODE
     const sendBtn = document.querySelector(`.btn-send-wallet[data-id="${walletId}"]`);
     if (sendBtn) sendBtn.onclick = () => {
         const tokens  = state.compose[walletId] || [];
@@ -726,6 +781,35 @@ function wireComposeButtons(walletId, wallet) {
                 renderWalletCompose(walletId);
             } else {
                 alert('send failed — check PIN or node connection');
+            }
+        });
+    };
+
+    // SEND SNAP
+    const snapSendBtn = document.getElementById(`snap-send-${walletId}`);
+    if (snapSendBtn) snapSendBtn.onclick = () => {
+        const toAddr = document.getElementById(`to-${walletId}`)?.value;
+        const rawAmount = document.getElementById(`snap-amount-${walletId}`)?.value.trim();
+        const amount = parseFloat(rawAmount);
+        if (!toAddr)          { alert('select a TO contact');      return; }
+        if (!amount || amount <= 0) { alert('enter a valid amount'); return; }
+
+        promptPin(async (pin) => {
+            const res = await fetch('/api/wallets/send-snap', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    from_wallet_id: walletId,
+                    to_address:     toAddr,
+                    amount,
+                    pin,
+                }),
+            });
+            if (res.ok) {
+                document.getElementById(`snap-amount-${walletId}`).value = '';
+                updateWalletBalance(walletId, wallet.address);
+            } else {
+                alert('send failed — check PIN, amount, or node connection');
             }
         });
     };
@@ -758,11 +842,8 @@ async function loadWallets() {
     state.wallets = {};
     data.wallets.forEach(w => state.wallets[w.id] = w);
 
-    // auto-expand first wallet in each column if none set
-    const left  = Object.values(state.wallets).filter(w => (w.column || 'left') === 'left').sort((a,b) => (a.order||0)-(b.order||0));
-    const right = Object.values(state.wallets).filter(w => w.column === 'right').sort((a,b) => (a.order||0)-(b.order||0));
-    if (!state.expanded.left  && left.length)  state.expanded.left  = left[0].id;
-    if (!state.expanded.right && right.length) state.expanded.right = right[0].id;
+    // always start collapsed — user expands what they need
+    state.expanded = { left: null, right: null };
 
     renderWallets();
 }
@@ -799,6 +880,29 @@ function shortAddr(addr) {
 
 // -----------------------------------------------------------------------------
 // INIT
+// -----------------------------------------------------------------------------
+// AUTO REFRESH - balance on every block, history every 20 blocks (~2 min)
+// -----------------------------------------------------------------------------
+let blocksSinceHistoryRefresh = 0;
+
+function refreshExpandedWallets(includeHistory = false) {
+    Object.values(state.wallets).forEach(w => {
+        const col = w.column === 'right' ? 'right' : 'left';
+        if (state.expanded[col] !== w.id) return;
+        updateWalletBalance(w.id, w.address);
+        if (includeHistory) loadWalletHistory(w.id, w.address);
+    });
+}
+
+function onBlock() {
+    blocksSinceHistoryRefresh++;
+    refreshExpandedWallets(false);
+    if (blocksSinceHistoryRefresh >= 20) {
+        blocksSinceHistoryRefresh = 0;
+        refreshExpandedWallets(true);
+    }
+}
+
 // -----------------------------------------------------------------------------
 async function init() {
     connectWs();
