@@ -2,6 +2,7 @@
 
 A wallet-to-wallet structured messaging app built on the SNAP Coin network.
 Uses micro-payment amounts as opcodes to encode meaning into transactions.
+Also supports plain SNAP transfers — all activity visible in a unified ledger.
 
 ## How It Works
 
@@ -21,6 +22,9 @@ user picks a word from the keyboard
 → decoded back to meaning via the dictionary
 ```
 
+Plain SNAP transfers work the same way — enter an amount, pick a contact,
+confirm with PIN. Both opcodes and transfers appear in the same ledger.
+
 ## Dependencies
 ```
 snap-coin-pay    — atomic deposit/withdrawal processing
@@ -37,16 +41,21 @@ snap-coin        — SNAP Coin node and chain types
 
 ## Features
 
-- Wallet-to-wallet opcode messaging
+- Wallet-to-wallet opcode messaging via semantic keyboard
+- Plain SNAP transfers — amount input with PIN confirmation
+- Unified ledger — all transactions in and out, opcodes and transfers
 - Live chain event stream — blocks, mempool, confirmations
+- Auto-refresh — balances update on every block, history every 20 blocks
 - Current chain height display
-- Wallet balance display
-- UTXO ledger view — sent and received per wallet
-- Semantic keyboard — words and phrases organized by family
-- Multi-wallet support with per-wallet PIN encryption
-- Contact nicknames
+- Wallet balance display with hide/show toggle
+- Multi-wallet support — left and right columns, moveable
+- Wallets start collapsed — expand what you need
+- Per-wallet PIN encryption — private key never stored in plaintext
+- Secure wallet creation — full address and key shown once with copy buttons
+- Contact nicknames for addressing
 - Watchlist for read-only pair monitoring
 - Node connection status
+- Decode view toggle — raw amounts or decoded meanings
 
 ## Setup
 ```bash
@@ -68,6 +77,7 @@ cp .env.example .env
 BIND_ADDR=0.0.0.0:8080
 NODE_API=127.0.0.1:3003
 DICTIONARY_PATH=../snap-coin-opcode/dictionary/dictionary.json
+OPCODE_GENESIS_HEIGHT=123114
 ```
 
 Build and run:
@@ -101,6 +111,19 @@ Example:
 The opcode dictionary lives in
 [snap-coin-opcode](https://github.com/OIEIEIO/snap-coin-opcode) and is the
 single source of truth for all words, phrases, families and meanings.
+
+Current version: **v0.3.0** — 83 opcodes across 8 families.
+
+| Family | Name        | Words |
+|--------|-------------|-------|
+| 01     | handshake   | HELLO, ACK, BYE, NICE_TO_MEET_YOU, YOURE_WELCOME |
+| 02     | response    | YES, NO, ACCEPT, REJECT |
+| 03     | scheduling  | Meet Today/Tomorrow 06:00–17:00 |
+| 04     | workflow    | QUOTE → PAYMENT lifecycle |
+| 05     | status      | URGENT, PENDING, DELAYED, CANCELLED |
+| 06     | single_word | AVAILABLE, OK, THANKS, SORRY, GOOD, GREAT, DONE, READY, BUSY + more |
+| 07     | question    | AVAILABLE?, CONFIRMED?, QUOTE_READY?, JOB_COMPLETE?, PAYMENT_SENT? |
+| 08     | answer      | YES/NO paired answers to family 07 questions |
 
 Any wallet with the dictionary can decode every conversation ever sent on
 the protocol directly from the chain — no server required.
