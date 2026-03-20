@@ -2,7 +2,7 @@
 // File: src/main.rs
 // Project: snap-coin-msg
 // Description: Axum server bootstrap, routes, startup
-// Version: 0.5.0
+// Version: 0.10.0
 // -----------------------------------------------------------------------------
 
 #![allow(dead_code)]
@@ -14,6 +14,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::services::ServeDir;
 
@@ -32,7 +33,18 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| ws::broadcaster::handle_socket(socket, state.tx.clone()))
+    ws.on_upgrade(move |socket| {
+        ws::broadcaster::handle_socket(socket, state.tx.clone())
+    })
+}
+
+async fn ws_chain_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| {
+        ws::chain_events::handle_chain_socket(socket, state.chain_tx.clone())
+    })
 }
 
 #[tokio::main]
@@ -50,22 +62,31 @@ async fn main() {
         dictionary.all_entries().len()
     );
 
-    let state = Arc::new(AppState::new(dictionary));
+    let node_addr: SocketAddr = std::env::var("NODE_API")
+        .unwrap_or_else(|_| "127.0.0.1:3003".to_string())
+        .parse()
+        .expect("invalid NODE_API address");
+
+    let state = Arc::new(AppState::new(dictionary, node_addr).await);
 
     let app = Router::new()
-        .route("/ws", get(ws_handler))
-        .route("/api/dictionary",        get(api::dictionary::get_dictionary))
-        .route("/api/node/status",       get(api::node::node_status))
-        .route("/api/send",              post(api::send::send_message))
-        .route("/api/conversations",     post(api::conversations::get_conversation))
-        .route("/api/wallets",           get(api::wallets::list_wallets))
-        .route("/api/wallets/add",       post(api::wallets::add_wallet))
-        .route("/api/wallets/unlock",    post(api::wallets::unlock_wallet))
-        .route("/api/contacts",          get(api::contacts::list_contacts))
-        .route("/api/contacts/add",      post(api::contacts::add_contact))
-        .route("/api/watchlist",         get(api::watchlist::list_watchlist))
-        .route("/api/watchlist/add",     post(api::watchlist::add_watch))
-        .route("/api/watchlist/remove",  post(api::watchlist::remove_watch))
+        .route("/ws",                           get(ws_handler))
+        .route("/ws/chain",                     get(ws_chain_handler))
+        .route("/api/dictionary",               get(api::dictionary::get_dictionary))
+        .route("/api/node/status",              get(api::node::node_status))
+        .route("/api/chain/height",             get(api::chain::get_height))
+        .route("/api/chain/balance/{address}",  get(api::chain::get_balance))
+        .route("/api/send",                     post(api::send::send_message))
+        .route("/api/conversations",            post(api::conversations::get_conversation))
+        .route("/api/conversations/register",   post(api::conversations::register_pair))
+        .route("/api/wallets",                  get(api::wallets::list_wallets))
+        .route("/api/wallets/add",              post(api::wallets::add_wallet))
+        .route("/api/wallets/unlock",           post(api::wallets::unlock_wallet))
+        .route("/api/contacts",                 get(api::contacts::list_contacts))
+        .route("/api/contacts/add",             post(api::contacts::add_contact))
+        .route("/api/watchlist",                get(api::watchlist::list_watchlist))
+        .route("/api/watchlist/add",            post(api::watchlist::add_watch))
+        .route("/api/watchlist/remove",         post(api::watchlist::remove_watch))
         .fallback_service(ServeDir::new("static"))
         .with_state(state);
 

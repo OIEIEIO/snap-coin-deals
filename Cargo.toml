@@ -5,7 +5,7 @@ edition = "2024"
 description = "SNAP Coin wallet-to-wallet opcode messaging app"
 
 [dependencies]
-snap-coin = "15.2.0"
+snap-coin = { version = "15.2.0", features = ["full"] }
 snap-coin-pay = { path = "../snap-coin-pay" }
 snap-coin-opcode = { path = "../snap-coin-opcode" }
 axum = { version = "0.8", features = ["ws"] }

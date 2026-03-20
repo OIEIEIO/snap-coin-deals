@@ -2,10 +2,11 @@
 // File: src/ws/mod.rs
 // Project: snap-coin-msg
 // Description: WebSocket module exports
-// Version: 0.1.0
+// Version: 0.2.0
 // -----------------------------------------------------------------------------
 
 pub mod broadcaster;
+pub mod chain_events;
 
 // -----------------------------------------------------------------------------
 // File: src/ws/mod.rs

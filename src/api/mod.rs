@@ -2,9 +2,10 @@
 // File: src/api/mod.rs
 // Project: snap-coin-msg
 // Description: API module exports
-// Version: 0.3.0
+// Version: 0.4.0
 // -----------------------------------------------------------------------------
 
+pub mod chain;
 pub mod contacts;
 pub mod conversations;
 pub mod dictionary;

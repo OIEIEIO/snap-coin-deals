@@ -2,7 +2,7 @@
 // File: src/transport/inbound.rs
 // Project: snap-coin-msg
 // Description: Inbound opcode tx watcher via snap-coin-pay deposit processor
-// Version: 0.2.0
+// Version: 0.4.0
 // -----------------------------------------------------------------------------
 
 use async_trait::async_trait;
@@ -19,52 +19,78 @@ use crate::app_state::WsEvent;
 #[derive(Clone)]
 pub struct OpcodeConfirmationHandler {
     pub dictionary: Arc<Dictionary>,
-    pub tx: broadcast::Sender<WsEvent>,
+    pub tx:         broadcast::Sender<WsEvent>,
 }
 
 #[async_trait]
 impl OnConfirmation for OpcodeConfirmationHandler {
     async fn on_confirmation(&self, deposit_address: Public, transaction: Transaction) {
         let decoder = Decoder::new(&self.dictionary);
+
+        let sender = transaction
+            .inputs
+            .first()
+            .map(|i| i.output_owner.dump_base36())
+            .unwrap_or_default();
+
         for output in &transaction.outputs {
+            if output.receiver != deposit_address {
+                continue;
+            }
             let raw = output.amount;
             if let Some(opcode) = decoder.decode_amount(raw) {
                 let event = WsEvent {
-                    from_wallet: format!("{:?}", transaction.inputs.first()),
-                    to_wallet: deposit_address.dump_base36(),
-                    amount: format!("0.{:08}", raw),
-                    meaning: opcode.meaning.clone(),
-                    category: opcode.category.clone(),
+                    from_wallet: sender.clone(),
+                    to_wallet:   deposit_address.dump_base36(),
+                    amount:      format!("0.{:08}", raw),
+                    meaning:     opcode.meaning.clone(),
+                    category:    opcode.category.clone(),
                 };
                 let _ = self.tx.send(event);
+                tracing::info!(
+                    "inbound opcode: {} → {} [{}] {}",
+                    &sender[..8],
+                    &deposit_address.dump_base36()[..8],
+                    opcode.category,
+                    opcode.meaning
+                );
             }
         }
     }
 }
 
-pub async fn start_inbound(
-    node_addr: SocketAddr,
-    watch_addresses: Vec<Public>,
-    dictionary: Arc<Dictionary>,
-    tx: broadcast::Sender<WsEvent>,
-) -> Arc<DepositPaymentProcessor> {
-    let chain = ApiChainInteraction::new(node_addr)
-        .await
-        .expect("failed to connect to node");
+pub struct InboundWatcher {
+    processor: Arc<DepositPaymentProcessor>,
+}
 
-    let handler = OpcodeConfirmationHandler { dictionary, tx };
-    let processor = DepositPaymentProcessor::create(None);
+impl InboundWatcher {
+    pub async fn new(
+        node_addr: SocketAddr,
+        dictionary: Arc<Dictionary>,
+        tx: broadcast::Sender<WsEvent>,
+    ) -> Self {
+        let chain = ApiChainInteraction::new(node_addr)
+            .await
+            .expect("failed to connect to node for inbound watcher");
 
-    for address in watch_addresses {
-        processor.add_deposit_address(address).await;
+        let handler   = OpcodeConfirmationHandler { dictionary, tx };
+        let processor = DepositPaymentProcessor::create(None);
+
+        processor
+            .start(chain, 1, handler)
+            .await
+            .expect("inbound processor failed to start");
+
+        Self { processor }
     }
 
-    processor
-        .start(chain, 10, handler)
-        .await
-        .expect("inbound processor failed");
+    pub async fn watch(&self, address: Public) {
+        self.processor.add_deposit_address(address).await;
+    }
 
-    processor
+    pub async fn unwatch(&self, address: Public) {
+        self.processor.remove_deposit_address(address).await;
+    }
 }
 
 // -----------------------------------------------------------------------------

@@ -36,7 +36,7 @@
         <!-- MAIN LAYOUT -->
         <div id="main">
 
-            <!-- LEFT PANEL: contacts + wallets -->
+            <!-- LEFT PANEL -->
             <div id="panel-left">
                 <div class="panel-section">
                     <div class="panel-title">WALLETS</div>
@@ -55,30 +55,51 @@
                 </div>
             </div>
 
-            <!-- CENTER PANEL: conversation -->
+            <!-- CENTER PANEL -->
             <div id="panel-center">
-                <div id="conversation-header">
-                    <div id="convo-wallet-a" class="convo-address">-</div>
-                    <div class="convo-arrow">⇄</div>
-                    <div id="convo-wallet-b" class="convo-address">-</div>
+
+                <!-- three columns -->
+                <div id="convo-columns">
+
+                    <!-- wallet a -->
+                    <div class="convo-col" id="col-a">
+                        <div class="col-header" id="col-header-a">
+                            <div class="col-name" id="col-name-a">WALLET A</div>
+                            <div class="col-balance" id="col-balance-a"></div>
+                        </div>
+                        <div class="col-entries" id="col-entries-a"></div>
+                    </div>
+
+                    <!-- chain events -->
+                    <div class="convo-col" id="col-chain">
+                        <div class="col-header" id="col-header-chain">
+                            <div class="col-name">CHAIN EVENTS</div>
+                            <div id="chain-height-display">
+                                <div id="chain-height-label">CURRENT HEIGHT</div>
+                                <div id="chain-height">-</div>
+                            </div>
+                        </div>
+                        <div class="col-entries" id="col-entries-chain"></div>
+                    </div>
+
+                    <!-- wallet b -->
+                    <div class="convo-col" id="col-b">
+                        <div class="col-header" id="col-header-b">
+                            <div class="col-name" id="col-name-b">WALLET B</div>
+                            <div class="col-balance" id="col-balance-b"></div>
+                        </div>
+                        <div class="col-entries" id="col-entries-b"></div>
+                    </div>
+
                 </div>
 
-                <div id="ledger-tabs">
-                    <button class="ledger-tab active" data-tab="decoded">DECODED</button>
-                    <button class="ledger-tab" data-tab="raw">RAW</button>
-                    <button class="ledger-tab" data-tab="both">BOTH</button>
+                <!-- keyboard -->
+                <div id="keyboard-area">
+                    <div id="keyboard-tabs"></div>
+                    <div id="keyboard-keys"></div>
                 </div>
 
-                <div id="ledger-decoded" class="ledger active">
-                    <div class="ledger-title">DECODED CONVERSATION</div>
-                    <div id="decoded-entries"></div>
-                </div>
-
-                <div id="ledger-raw" class="ledger">
-                    <div class="ledger-title">RAW LEDGER</div>
-                    <div id="raw-entries"></div>
-                </div>
-
+                <!-- compose -->
                 <div id="compose-area">
                     <div id="compose-tokens"></div>
                     <div id="compose-controls">
@@ -86,15 +107,8 @@
                         <button id="btn-send" class="btn-compose btn-send">SEND</button>
                     </div>
                 </div>
-            </div>
 
-            <!-- RIGHT PANEL: keyboard -->
-            <div id="panel-right">
-                <div class="panel-title">KEYBOARD</div>
-                <div id="keyboard-tabs"></div>
-                <div id="keyboard-keys"></div>
             </div>
-
         </div>
     </div>
 
@@ -106,6 +120,18 @@
             <div id="modal-controls">
                 <button id="modal-cancel" class="btn-compose">CANCEL</button>
                 <button id="modal-confirm" class="btn-compose btn-send">CONFIRM</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN -->
+    <div id="pin-overlay" class="hidden">
+        <div id="pin-box">
+            <div id="pin-title">ENTER WALLET PIN</div>
+            <input class="modal-input" id="pin-input" type="password" placeholder="PIN">
+            <div id="pin-controls">
+                <button id="pin-cancel" class="btn-compose">CANCEL</button>
+                <button id="pin-confirm" class="btn-compose btn-send">UNLOCK</button>
             </div>
         </div>
     </div>
