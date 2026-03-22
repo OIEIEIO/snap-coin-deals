@@ -1,1 +1,11 @@
 /target
+
+# runtime data - not tracked
+config/contacts.json
+config/wallets.json
+snap-pay-deposit-scanned-height
+snap-pay-withdrawal-scanned-height
+snap-pay-withdrawals.json
+snap-pay-withdrawals.log
+
+
