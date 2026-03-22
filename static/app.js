@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // File: static/app.js
-// Project: snap-coin-msg
+// Tree: snap-coin-msg/static/app.js
 // Description: Multi-wallet panel layout - left/right columns, per-wallet ledger
-// Version: 2.0.0
+// Version: 2.6.0
+// Changes: reload wallet history after snap send so ledger updates without page refresh
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -126,29 +127,7 @@ function renderWorkspaceContacts(body) {
         list.appendChild(item);
     });
 
-    const form = document.createElement('div');
-    form.className = 'ws-form';
-    form.innerHTML = `
-        <div class="ws-form-title">ADD CONTACT</div>
-        <input class="modal-input" id="ws-nick" placeholder="nickname">
-        <input class="modal-input" id="ws-addr" placeholder="SNAP address">
-        <button class="btn-ws-submit" id="ws-add-contact">ADD</button>
-    `;
-
     body.appendChild(list);
-    body.appendChild(form);
-
-    document.getElementById('ws-add-contact').onclick = async () => {
-        const nick = document.getElementById('ws-nick').value.trim();
-        const addr = document.getElementById('ws-addr').value.trim();
-        if (!nick || !addr) return;
-        await fetch('/api/contacts/add', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: `c_${Date.now()}`, nickname: nick, address: addr }),
-        });
-        await loadContacts();
-        renderWorkspaceTab('contacts');
-    };
 }
 
 function renderWorkspaceAddWallet(body) {
@@ -184,7 +163,8 @@ function renderWorkspaceAddWallet(body) {
             }),
         });
         await loadWallets();
-        renderWorkspaceTab('add-wallet');
+        await loadContacts();
+        renderWorkspaceTab('import-wallet');
     };
 }
 
@@ -218,6 +198,7 @@ function renderWorkspaceCreateWallet(body) {
         if (!res.ok) { alert('create wallet failed'); return; }
         const data = await res.json();
         await loadWallets();
+        await loadContacts();
 
         // overlay modal
         const overlay = document.createElement('div');
@@ -511,12 +492,16 @@ function buildWalletPanel(w, col, expanded) {
         <div class="wp-header-left">
             <span class="wp-label">${w.label}</span>
             ${!w.can_send ? '<span class="item-badge view">VIEW</span>' : ''}
+            ${w.locked   ? '<span class="item-badge demo">DEMO</span>' : ''}
         </div>
         <div class="wp-header-right">
             <span class="wp-balance" id="balance-${w.id}"></span>
             ${expanded ? `<button class="wp-btn-text" id="btn-hide-${w.id}">HIDE</button>` : ''}
             ${expanded ? `<button class="wp-btn-text" id="btn-refresh-${w.id}">REFRESH</button>` : ''}
+            ${!w.locked ? `<button class="wp-btn-text btn-delete-wallet" id="btn-delete-${w.id}">DELETE</button>` : ''}
             <button class="wp-btn-text" id="btn-move-${w.id}">${col === 'left' ? 'MOVE RIGHT' : 'MOVE LEFT'}</button>
+            <button class="wp-btn-text" id="btn-up-${w.id}">UP</button>
+            <button class="wp-btn-text" id="btn-down-${w.id}">DOWN</button>
             <button class="wp-btn-text" id="toggle-${w.id}">${expanded ? 'COLLAPSE' : 'EXPAND'}</button>
         </div>
     `;
@@ -527,8 +512,9 @@ function buildWalletPanel(w, col, expanded) {
         toggleWalletPanel(w.id, col);
     };
 
-    // move
-    header.querySelector(`#btn-move-${w.id}`).onclick = async (e) => {
+    // move — all wallets
+    const moveBtn = header.querySelector(`#btn-move-${w.id}`);
+    if (moveBtn) moveBtn.onclick = async (e) => {
         e.stopPropagation();
         const newCol = col === 'left' ? 'right' : 'left';
         await fetch('/api/wallets/move', {
@@ -537,6 +523,45 @@ function buildWalletPanel(w, col, expanded) {
             body:    JSON.stringify({ id: w.id, column: newCol }),
         });
         await loadWallets();
+    };
+
+    // up
+    header.querySelector(`#btn-up-${w.id}`).onclick = async (e) => {
+        e.stopPropagation();
+        await fetch('/api/wallets/reorder', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ id: w.id, direction: 'up' }),
+        });
+        await loadWallets();
+    };
+
+    // down
+    header.querySelector(`#btn-down-${w.id}`).onclick = async (e) => {
+        e.stopPropagation();
+        await fetch('/api/wallets/reorder', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ id: w.id, direction: 'down' }),
+        });
+        await loadWallets();
+    };
+
+    // delete — only present on unlocked wallets
+    const deleteBtn = header.querySelector(`#btn-delete-${w.id}`);
+    if (deleteBtn) deleteBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete wallet "${w.label}"? This cannot be undone.`)) return;
+        const res = await fetch('/api/wallets/delete', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ id: w.id }),
+        });
+        if (res.ok) {
+            await loadWallets();
+        } else {
+            alert('delete failed');
+        }
     };
 
     if (expanded) {
@@ -779,6 +804,8 @@ function wireComposeButtons(walletId, wallet) {
             if (res.ok) {
                 state.compose[walletId] = [];
                 renderWalletCompose(walletId);
+            } else if (res.status === 403) {
+                alert('Demo sandbox: sends are restricted to wallets loaded in this app.\n\nWant to keep the demo running? Send SNAP to the demo wallets to top them up!');
             } else {
                 alert('send failed — check PIN or node connection');
             }
@@ -808,6 +835,9 @@ function wireComposeButtons(walletId, wallet) {
             if (res.ok) {
                 document.getElementById(`snap-amount-${walletId}`).value = '';
                 updateWalletBalance(walletId, wallet.address);
+                loadWalletHistory(walletId, wallet.address);
+            } else if (res.status === 403) {
+                alert('Demo sandbox: sends are restricted to wallets loaded in this app.\n\nWant to keep the demo running? Send SNAP to the demo wallets to top them up!');
             } else {
                 alert('send failed — check PIN, amount, or node connection');
             }
@@ -918,6 +948,6 @@ init();
 
 // -----------------------------------------------------------------------------
 // File: static/app.js
-// Project: snap-coin-msg
-// Created: 2026-03-19 | Updated: 2026-03-20
+// Tree: snap-coin-msg/static/app.js
+// Created: 2026-03-19 | Updated: 2026-03-22
 // -----------------------------------------------------------------------------

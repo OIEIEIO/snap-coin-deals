@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // File: src/config/contacts.rs
-// Project: snap-coin-msg
+// Tree: snap-coin-msg/src/config/contacts.rs
 // Description: Load and save contacts - nicknames and wallet addresses
-// Version: 0.1.0
+// Version: 0.2.0
+// Changes: added remove method
 // -----------------------------------------------------------------------------
 
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,12 @@ impl ContactsFile {
         self.contacts.insert(id, contact);
     }
 
+    pub fn remove(&mut self, id: &str) -> Result<(), String> {
+        self.contacts.remove(id)
+            .ok_or_else(|| format!("Contact {} not found", id))?;
+        Ok(())
+    }
+
     pub fn get(&self, id: &str) -> Option<&Contact> {
         self.contacts.get(id)
     }
@@ -61,6 +68,6 @@ impl ContactsFile {
 
 // -----------------------------------------------------------------------------
 // File: src/config/contacts.rs
-// Project: snap-coin-msg
-// Created: 2026-03-19
+// Tree: snap-coin-msg/src/config/contacts.rs
+// Created: 2026-03-19 | Updated: 2026-03-22
 // -----------------------------------------------------------------------------

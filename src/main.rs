@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // File: src/main.rs
-// Project: snap-coin-msg
+// Tree: snap-coin-msg/src/main.rs
 // Description: Axum server bootstrap, routes, startup
-// Version: 0.11.0
+// Version: 0.13.0
+// Changes: added /api/wallets/reorder route
 // -----------------------------------------------------------------------------
 
 #![allow(dead_code)]
@@ -91,6 +92,8 @@ async fn main() {
         .route("/api/wallets/add",              post(api::wallets::add_wallet))
         .route("/api/wallets/create",           post(api::wallets::create_wallet))
         .route("/api/wallets/move",             post(api::wallets::move_wallet))
+        .route("/api/wallets/delete",           post(api::wallets::delete_wallet))
+        .route("/api/wallets/reorder",          post(api::wallets::reorder_wallet))
         .route("/api/wallets/send-snap",        post(api::wallets::send_snap))
         .route("/api/contacts",                 get(api::contacts::list_contacts))
         .route("/api/contacts/add",             post(api::contacts::add_contact))
@@ -114,6 +117,6 @@ async fn main() {
 
 // -----------------------------------------------------------------------------
 // File: src/main.rs
-// Project: snap-coin-msg
-// Created: 2026-03-19 | Updated: 2026-03-20
+// Tree: snap-coin-msg/src/main.rs
+// Created: 2026-03-19 | Updated: 2026-03-22
 // -----------------------------------------------------------------------------

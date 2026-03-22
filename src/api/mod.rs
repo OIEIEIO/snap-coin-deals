@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // File: src/api/mod.rs
-// Project: snap-coin-msg
+// Tree: snap-coin-msg/src/api/mod.rs
 // Description: API module exports
-// Version: 0.5.0
+// Version: 0.6.0
+// Changes: no new modules — delete_wallet lives in wallets.rs
 // -----------------------------------------------------------------------------
 
 pub mod chain;
@@ -14,9 +15,10 @@ pub mod node;
 pub mod send;
 pub mod wallets;
 pub mod watchlist;
+pub mod wallet_column;
 
 // -----------------------------------------------------------------------------
 // File: src/api/mod.rs
-// Project: snap-coin-msg
-// Created: 2026-03-19 | Updated: 2026-03-20
+// Tree: snap-coin-msg/src/api/mod.rs
+// Created: 2026-03-19 | Updated: 2026-03-21
 // -----------------------------------------------------------------------------

@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // File: src/api/wallets.rs
-// Project: snap-coin-msg
-// Description: REST endpoints for wallet management - add, create, list, send-snap
-// Version: 0.3.0
+// Tree: snap-coin-msg/src/api/wallets.rs
+// Description: REST endpoints for wallet management - add, create, list, delete, reorder, send-snap
+// Version: 0.8.0
+// Changes: delete_wallet now also removes matching contact
 // -----------------------------------------------------------------------------
 
 use axum::{extract::State, http::StatusCode, Json};
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use crate::app_state::AppState;
 use crate::wallet::store::{WalletEntry, WalletsFile};
 use crate::wallet::pin::{encrypt_key, decrypt_key};
+use crate::config::contacts::{Contact, ContactsFile};
 
 #[derive(Debug, Serialize)]
 pub struct WalletsResponse {
@@ -26,6 +28,7 @@ pub struct WalletItem {
     pub can_send: bool,
     pub column:   String,
     pub order:    u32,
+    pub locked:   bool,
 }
 
 // --- ADD WALLET (import existing) ---
@@ -66,6 +69,21 @@ pub struct MoveWalletRequest {
     pub column: String,
 }
 
+// --- DELETE WALLET ---
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteWalletRequest {
+    pub id: String,
+}
+
+// --- REORDER WALLET ---
+
+#[derive(Debug, Deserialize)]
+pub struct ReorderWalletRequest {
+    pub id:        String,
+    pub direction: String,   // "up" or "down"
+}
+
 // --- SEND SNAP (plain transfer, no opcode) ---
 
 #[derive(Debug, Deserialize)]
@@ -98,6 +116,7 @@ pub async fn list_wallets(
             can_send: !w.encrypted_key.is_empty(),
             column:   w.column.clone().unwrap_or_else(|| "left".to_string()),
             order:    w.order.unwrap_or(0),
+            locked:   w.locked,
         })
         .collect();
 
@@ -118,9 +137,14 @@ pub async fn add_wallet(
 
     let order = file.next_order();
 
+    let label   = req.label.clone();
+    let address = req.address.clone();
+    let id      = req.id.clone();
+
     file.add(req.id, WalletEntry {
         label:         req.label,
         address:       req.address,
+        locked:        !encrypted_key.is_empty(),
         encrypted_key,
         column:        Some(req.column.unwrap_or_else(|| "left".to_string())),
         order:         Some(order),
@@ -128,6 +152,16 @@ pub async fn add_wallet(
 
     file.save("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // auto-add to contacts using label as nickname
+    if let Ok(mut contacts) = ContactsFile::load("config/contacts.json") {
+        let contact_id = format!("c_{}", &id[2..]);
+        contacts.add(contact_id, Contact {
+            nickname: label,
+            address,
+        });
+        let _ = contacts.save("config/contacts.json");
+    }
 
     Ok(StatusCode::CREATED)
 }
@@ -153,10 +187,21 @@ pub async fn create_wallet(
         encrypted_key,
         column:        Some(req.column.unwrap_or_else(|| "left".to_string())),
         order:         Some(order),
+        locked:        true,
     });
 
     file.save("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // auto-add to contacts using label as nickname
+    if let Ok(mut contacts) = ContactsFile::load("config/contacts.json") {
+        let contact_id = format!("c_{}", &req.id[2..]);
+        contacts.add(contact_id, Contact {
+            nickname: req.label.clone(),
+            address:  address.clone(),
+        });
+        let _ = contacts.save("config/contacts.json");
+    }
 
     tracing::info!("wallet created: {} {}", req.label, &address[..8]);
 
@@ -184,14 +229,59 @@ pub async fn move_wallet(
     Ok(StatusCode::OK)
 }
 
+pub async fn delete_wallet(
+    State(_state): State<Arc<AppState>>,
+    Json(req): Json<DeleteWalletRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let mut file = WalletsFile::load("config/wallets.json")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    file.remove(&req.id)
+        .map_err(|_| StatusCode::FORBIDDEN)?;
+
+    file.save("config/wallets.json")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // remove matching contact
+    let contact_id = format!("c_{}", &req.id[2..]);
+    if let Ok(mut contacts) = ContactsFile::load("config/contacts.json") {
+        let _ = contacts.remove(&contact_id);
+        let _ = contacts.save("config/contacts.json");
+    }
+
+    Ok(StatusCode::OK)
+}
+
+pub async fn reorder_wallet(
+    State(_state): State<Arc<AppState>>,
+    Json(req): Json<ReorderWalletRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let mut file = WalletsFile::load("config/wallets.json")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    file.swap_order(&req.id, &req.direction)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    file.save("config/wallets.json")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
 pub async fn send_snap(
     State(state): State<Arc<AppState>>,
     Json(req): Json<SendSnapRequest>,
 ) -> Result<Json<SendSnapResponse>, StatusCode> {
 
-    // load and decrypt wallet key
     let wallets = WalletsFile::load("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // sandbox restriction — to_address must exist in wallets.json with a key
+    let target_valid = wallets.wallets.values()
+        .any(|w| w.address == req.to_address && !w.encrypted_key.is_empty());
+    if !target_valid {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     let wallet = wallets.get(&req.from_wallet_id)
         .ok_or(StatusCode::NOT_FOUND)?;
@@ -226,6 +316,6 @@ pub async fn send_snap(
 
 // -----------------------------------------------------------------------------
 // File: src/api/wallets.rs
-// Project: snap-coin-msg
-// Created: 2026-03-19 | Updated: 2026-03-20
+// Tree: snap-coin-msg/src/api/wallets.rs
+// Created: 2026-03-19 | Updated: 2026-03-22
 // -----------------------------------------------------------------------------
