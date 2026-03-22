@@ -3,7 +3,7 @@
 // Tree: snap-coin-msg/static/app.js
 // Description: Multi-wallet panel layout - left/right columns, per-wallet ledger
 // Version: 2.6.0
-// Changes: reload wallet history after snap send so ledger updates without page refresh
+// Changes: reverted chain_events and history reload — caused ledger display bugs
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -835,7 +835,6 @@ function wireComposeButtons(walletId, wallet) {
             if (res.ok) {
                 document.getElementById(`snap-amount-${walletId}`).value = '';
                 updateWalletBalance(walletId, wallet.address);
-                loadWalletHistory(walletId, wallet.address);
             } else if (res.status === 403) {
                 alert('Demo sandbox: sends are restricted to wallets loaded in this app.\n\nWant to keep the demo running? Send SNAP to the demo wallets to top them up!');
             } else {

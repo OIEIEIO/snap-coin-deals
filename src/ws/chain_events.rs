@@ -1,9 +1,8 @@
 // -----------------------------------------------------------------------------
 // File: src/ws/chain_events.rs
-// Tree: snap-coin-msg/src/ws/chain_events.rs
+// Project: snap-coin-msg
 // Description: Chain event broadcaster - dictionary aware, height tracking
-// Version: 0.4.0
-// Changes: emit pending WsEvent for plain SNAP transfers to/from watched addresses
+// Version: 0.3.0
 // -----------------------------------------------------------------------------
 
 use axum::extract::ws::{Message, WebSocket};
@@ -118,32 +117,8 @@ pub async fn start_chain_event_broadcaster(
                                     opcode_parts.push(format!(
                                         "{}  {}",
                                         &receiver[..8],
-                                        amount_str.clone()
+                                        amount_str
                                     ));
-
-                                    // emit pending WsEvent for plain transfer if receiver is watched
-                                    if watched.contains(&receiver) {
-                                        let _ = opcode_tx.send(WsEvent {
-                                            from_wallet: sender.clone(),
-                                            to_wallet:   receiver.clone(),
-                                            amount:      amount_str.clone(),
-                                            meaning:     amount_str.clone(),
-                                            category:    "transfer".to_string(),
-                                            pending:     true,
-                                        });
-                                    }
-
-                                    // emit pending WsEvent for plain transfer if sender is watched
-                                    if watched.contains(&sender) {
-                                        let _ = opcode_tx.send(WsEvent {
-                                            from_wallet: sender.clone(),
-                                            to_wallet:   receiver.clone(),
-                                            amount:      amount_str.clone(),
-                                            meaning:     amount_str.clone(),
-                                            category:    "transfer".to_string(),
-                                            pending:     true,
-                                        });
-                                    }
                                 }
                             }
 
@@ -210,6 +185,6 @@ pub async fn handle_chain_socket(
 
 // -----------------------------------------------------------------------------
 // File: src/ws/chain_events.rs
-// Tree: snap-coin-msg/src/ws/chain_events.rs
-// Created: 2026-03-19 | Updated: 2026-03-22
+// Project: snap-coin-msg
+// Created: 2026-03-19
 // -----------------------------------------------------------------------------
