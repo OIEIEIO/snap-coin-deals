@@ -2,8 +2,8 @@
 // File: static/app.js
 // Tree: snap-coin-msg/static/app.js
 // Description: Multi-wallet panel layout - left/right columns, per-wallet ledger
-// Version: 2.7.0
-// Changes: two-row expanded header (info row + actions row), mobile layout support
+// Version: 2.7.2
+// Changes: JS clear on snap-amount-input after render to defeat Chrome autofill
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -478,6 +478,11 @@ function renderWallets() {
         const isExpanded = state.expanded[col] === w.id;
         container.appendChild(buildWalletPanel(w, col, isExpanded));
     });
+
+    // defeat browser autofill on load
+    setTimeout(() => {
+        document.querySelectorAll('.snap-amount-input').forEach(el => el.value = '');
+    }, 0);
 }
 
 function buildWalletPanel(w, col, expanded) {
@@ -641,7 +646,7 @@ function buildWalletPanel(w, col, expanded) {
         snapRow.className = 'wp-snap-row';
         snapRow.innerHTML = `
             <span class="routing-label">SNAP</span>
-            <input class="snap-amount-input" id="snap-amount-${w.id}" type="text" inputmode="decimal" placeholder="amount e.g. 1.5">
+            <input class="snap-amount-input" id="snap-amount-${w.id}" type="text" inputmode="decimal" placeholder="amount e.g. 1.5" autocomplete="off">
             <button class="btn-snap-send" id="snap-send-${w.id}">SEND SNAP</button>
         `;
         body.appendChild(snapRow);
@@ -699,6 +704,12 @@ function toggleWalletPanel(walletId, col) {
     sorted.forEach(w => {
         container.appendChild(buildWalletPanel(w, col, state.expanded[col] === w.id));
     });
+
+    // defeat browser autofill — clear snap amount after DOM settles
+    setTimeout(() => {
+        const el = document.getElementById(`snap-amount-${walletId}`);
+        if (el) el.value = '';
+    }, 0);
 }
 
 // -----------------------------------------------------------------------------
