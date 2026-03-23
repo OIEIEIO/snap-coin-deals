@@ -2,8 +2,8 @@
 // File: static/app.js
 // Tree: snap-coin-msg/static/app.js
 // Description: Multi-wallet panel layout - left/right columns, per-wallet ledger
-// Version: 2.6.0
-// Changes: reverted chain_events and history reload — caused ledger display bugs
+// Version: 2.7.0
+// Changes: two-row expanded header (info row + actions row), mobile layout support
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -487,24 +487,46 @@ function buildWalletPanel(w, col, expanded) {
 
     // --- HEADER ---
     const header = document.createElement('div');
-    header.className = 'wp-header';
-    header.innerHTML = `
-        <div class="wp-header-left">
-            <span class="wp-label">${w.label}</span>
-            ${!w.can_send ? '<span class="item-badge view">VIEW</span>' : ''}
-            ${w.locked   ? '<span class="item-badge demo">DEMO</span>' : ''}
-        </div>
-        <div class="wp-header-right">
-            <span class="wp-balance" id="balance-${w.id}"></span>
-            ${expanded ? `<button class="wp-btn-text" id="btn-hide-${w.id}">HIDE</button>` : ''}
-            ${expanded ? `<button class="wp-btn-text" id="btn-refresh-${w.id}">REFRESH</button>` : ''}
-            ${!w.locked ? `<button class="wp-btn-text btn-delete-wallet" id="btn-delete-${w.id}">DELETE</button>` : ''}
-            <button class="wp-btn-text" id="btn-move-${w.id}">${col === 'left' ? 'MOVE RIGHT' : 'MOVE LEFT'}</button>
-            <button class="wp-btn-text" id="btn-up-${w.id}">UP</button>
-            <button class="wp-btn-text" id="btn-down-${w.id}">DOWN</button>
-            <button class="wp-btn-text" id="toggle-${w.id}">${expanded ? 'COLLAPSE' : 'EXPAND'}</button>
-        </div>
-    `;
+
+    if (expanded) {
+        header.className = 'wp-header wp-expanded';
+        header.innerHTML = `
+            <div class="wp-header-info">
+                <div class="wp-header-left">
+                    <span class="wp-label">${w.label}</span>
+                    ${!w.can_send ? '<span class="item-badge view">VIEW</span>' : ''}
+                    ${w.locked   ? '<span class="item-badge demo">DEMO</span>' : ''}
+                </div>
+                <div class="wp-header-right-info">
+                    <span class="wp-balance" id="balance-${w.id}"></span>
+                    <button class="wp-btn-text" id="btn-hide-${w.id}">HIDE</button>
+                </div>
+            </div>
+            <div class="wp-header-actions">
+                <button class="wp-btn-text" id="btn-refresh-${w.id}">REFRESH</button>
+                ${!w.locked ? `<button class="wp-btn-text btn-delete-wallet" id="btn-delete-${w.id}">DELETE</button>` : ''}
+                <button class="wp-btn-text" id="btn-move-${w.id}">${col === 'left' ? 'MOVE RIGHT' : 'MOVE LEFT'}</button>
+                <button class="wp-btn-text" id="btn-up-${w.id}">UP</button>
+                <button class="wp-btn-text" id="btn-down-${w.id}">DOWN</button>
+                <button class="wp-btn-text" id="toggle-${w.id}">COLLAPSE</button>
+            </div>
+        `;
+    } else {
+        header.className = 'wp-header';
+        header.innerHTML = `
+            <div class="wp-header-left">
+                <span class="wp-label">${w.label}</span>
+                ${!w.can_send ? '<span class="item-badge view">VIEW</span>' : ''}
+                ${w.locked   ? '<span class="item-badge demo">DEMO</span>' : ''}
+            </div>
+            <div class="wp-header-right">
+                <button class="wp-btn-text" id="btn-move-${w.id}">${col === 'left' ? 'MOVE RIGHT' : 'MOVE LEFT'}</button>
+                <button class="wp-btn-text" id="btn-up-${w.id}">UP</button>
+                <button class="wp-btn-text" id="btn-down-${w.id}">DOWN</button>
+                <button class="wp-btn-text" id="toggle-${w.id}">EXPAND</button>
+            </div>
+        `;
+    }
 
     // toggle
     header.querySelector(`#toggle-${w.id}`).onclick = (e) => {
@@ -948,5 +970,5 @@ init();
 // -----------------------------------------------------------------------------
 // File: static/app.js
 // Tree: snap-coin-msg/static/app.js
-// Created: 2026-03-19 | Updated: 2026-03-22
+// Created: 2026-03-19 | Updated: 2026-03-23
 // -----------------------------------------------------------------------------

@@ -2,7 +2,8 @@
    File: static/app.css
    Project: snap-coin-msg
    Description: Multi-wallet panel layout
-   Version: 1.0.0
+   Version: 1.1.0
+   Changes: two-row expanded wallet header, mobile stacking breakpoint
 ============================================================================= */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -178,25 +179,70 @@ html, body {
     min-height: 0;
 }
 
-/* PANEL HEADER */
+/* PANEL HEADER - shared */
 .wp-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 10px;
     cursor: pointer;
     background: var(--bg-panel);
     border-bottom: 1px solid transparent;
     user-select: none;
     flex-shrink: 0;
 }
+.wp-header:hover { background: var(--bg-hover); }
 
-.wallet-panel.expanded .wp-header {
-    border-bottom-color: var(--border);
-    border-left: 3px solid var(--accent);
+/* collapsed - single row */
+.wp-header:not(.wp-expanded) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
 }
 
-.wp-header:hover { background: var(--bg-hover); }
+.wp-header:not(.wp-expanded) .wp-header-left,
+.wp-header:not(.wp-expanded) .wp-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* expanded - two rows */
+.wp-header.wp-expanded {
+    display: flex;
+    flex-direction: column;
+    border-left: 3px solid var(--accent);
+    border-bottom-color: var(--border);
+}
+
+/* row 1: name / badge / balance / HIDE */
+.wp-header-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px 4px 10px;
+}
+
+.wp-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.wp-header-right-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* row 2: action buttons */
+.wp-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 8px 10px;
+    flex-wrap: wrap;
+}
 
 .wp-header-left {
     display: flex;
@@ -947,9 +993,72 @@ html, body {
 #pin-controls { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* =============================================================================
+   MOBILE BREAKPOINT
+============================================================================= */
+@media (max-width: 768px) {
+    #main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        overflow-y: auto;
+    }
+
+    #col-center {
+        display: none;
+    }
+
+    .wallet-column {
+        border-right: none;
+        border-left: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    #col-right {
+        border-left: none;
+    }
+
+    .wp-header-actions {
+        gap: 5px;
+    }
+
+    .wp-btn-text {
+        padding: 5px 10px;
+        font-size: 11px;
+        min-height: 32px;
+    }
+
+    .keyboard-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .keyboard-tab {
+        padding: 8px 14px;
+        min-height: 36px;
+    }
+
+    .key-btn {
+        padding: 7px 12px;
+        min-height: 36px;
+    }
+
+    .btn-snap-send,
+    .btn-compose {
+        min-height: 40px;
+    }
+
+    #header {
+        padding: 0 10px;
+    }
+
+    #header-center {
+        display: none;
+    }
+}
+
+/* =============================================================================
    File: static/app.css
    Project: snap-coin-msg
-   Created: 2026-03-19 | Updated: 2026-03-20
+   Created: 2026-03-19 | Updated: 2026-03-23
 ============================================================================= */
 
 
