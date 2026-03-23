@@ -1,11 +1,19 @@
+# -----------------------------------------------------------------------------
+# File: Cargo.toml
+# Location: snap-coin-msg/Cargo.toml
+# Version: 0.2.0
+# Description: Manifest for snap-coin-msg — updated for snap-coin v16 compatibility.
+#              Bumped snap-coin to 16.0.0, changed feature "full" to "full-node".
+# -----------------------------------------------------------------------------
+
 [package]
 name = "snap-coin-msg"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "SNAP Coin wallet-to-wallet opcode messaging app"
 
 [dependencies]
-snap-coin = { version = "15.2.0", features = ["full"] }
+snap-coin = { version = "16.0.0", features = ["full-node"] }
 snap-coin-pay = { path = "../snap-coin-pay" }
 snap-coin-opcode = { path = "../snap-coin-opcode" }
 axum = { version = "0.8", features = ["ws"] }
@@ -20,3 +28,9 @@ sha2 = "0.10"
 hex = "0.4"
 futures-util = "0.3"
 async-trait = "0.1"
+
+# -----------------------------------------------------------------------------
+# File: Cargo.toml
+# Location: snap-coin-msg/Cargo.toml
+# Created: 2026-03-23T00:00:00Z
+# -----------------------------------------------------------------------------

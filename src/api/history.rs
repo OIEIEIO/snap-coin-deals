@@ -1,13 +1,15 @@
 // -----------------------------------------------------------------------------
-// File: src/api/history.rs
-// Project: snap-coin-msg
-// Description: Fetch full wallet transaction history from opcode genesis height
-// Version: 0.4.0
+// File: history.rs
+// Location: snap-coin-msg/src/api/history.rs
+// Version: 0.5.0
+// Description: Fetch full wallet transaction history from opcode genesis height.
+//              Updated for snap-coin v16: requests moved from api::requests to requests.
+//              Fixed TransactionId type annotation on TransactionAndInfo request.
 // -----------------------------------------------------------------------------
 
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
-use snap_coin::api::requests::{Request, Response};
+use snap_coin::requests::{Request, Response};
 use snap_coin::core::transaction::TransactionId;
 use snap_coin::crypto::keys::Public;
 use std::sync::Arc;
@@ -60,7 +62,7 @@ async fn fetch_tx_ids_from_genesis(
         match node_request(stream, req).await? {
             Response::TransactionsOfAddress { transactions, next_page } => {
                 for tx_id in transactions {
-                    let info_req = Request::TransactionAndInfo { transaction_id: tx_id.clone() };
+                    let info_req = Request::TransactionAndInfo { transaction_id: tx_id as TransactionId };
                     let height = match node_request(stream_info, info_req).await? {
                         Response::TransactionAndInfo { transaction_and_info: Some(info) } => {
                             info.at_height
@@ -124,18 +126,14 @@ pub async fn get_history(
                 for output in &tx.outputs {
                     let receiver = output.receiver.dump_base36();
 
-                    // only include outputs directly to or from this wallet
-                    // if sender: only outputs NOT back to self (excludes change)
-                    // if receiver: only outputs where this wallet is the receiver
                     let is_sender   = sender == addr_str;
                     let is_receiver = receiver == addr_str;
 
-                    if is_sender && receiver == addr_str { continue; } // skip change back to self
-                    if !is_sender && !is_receiver        { continue; } // skip unrelated outputs
+                    if is_sender && receiver == addr_str { continue; }
+                    if !is_sender && !is_receiver        { continue; }
 
                     let amount_str = format!("{}.{:08}", output.amount / 100_000_000, output.amount % 100_000_000);
 
-                    // check if this amount matches a dictionary opcode
                     let opcode_match = dict_entries
                         .iter()
                         .find(|(_, e)| e.amount == amount_str)
@@ -167,7 +165,6 @@ pub async fn get_history(
         }
     }
 
-    // sort ascending — oldest first, frontend prepends so newest ends up on top
     entries.sort_by_key(|e| e.height);
 
     Ok(Json(HistoryResponse {
@@ -177,7 +174,7 @@ pub async fn get_history(
 }
 
 // -----------------------------------------------------------------------------
-// File: src/api/history.rs
-// Project: snap-coin-msg
-// Created: 2026-03-20 | Updated: 2026-03-20
+// File: history.rs
+// Location: snap-coin-msg/src/api/history.rs
+// Created: 2026-03-23T00:00:00Z
 // -----------------------------------------------------------------------------

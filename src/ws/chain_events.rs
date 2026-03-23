@@ -1,14 +1,16 @@
 // -----------------------------------------------------------------------------
-// File: src/ws/chain_events.rs
-// Project: snap-coin-msg
-// Description: Chain event broadcaster - dictionary aware, height tracking
-// Version: 0.3.0
+// File: chain_events.rs
+// Location: snap-coin-msg/src/ws/chain_events.rs
+// Version: 0.4.0
+// Description: Chain event broadcaster - dictionary aware, height tracking.
+//              Updated for snap-coin v16: ChainEvent moved from
+//              full_node::node_state to node::chain_events.
 // -----------------------------------------------------------------------------
 
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
-use snap_coin::full_node::node_state::ChainEvent;
+use snap_coin::node::chain_events::ChainEvent;
 use snap_coin_opcode::Dictionary;
 use snap_coin_opcode::Decoder;
 use snap_coin_pay::chain_interaction::ApiChainInteraction;
@@ -87,7 +89,6 @@ pub async fn start_chain_event_broadcaster(
                                 .map(|i| i.output_owner.dump_base36())
                                 .unwrap_or_default();
 
-                            // check if any output targets a watched address
                             let watched = watched_addresses.read().await;
 
                             for output in &transaction.outputs {
@@ -102,7 +103,6 @@ pub async fn start_chain_event_broadcaster(
                                     ));
                                     is_opcode = true;
 
-                                    // emit pending WsEvent if receiver is watched
                                     if watched.contains(&receiver) {
                                         let _ = opcode_tx.send(WsEvent {
                                             from_wallet: sender.clone(),
@@ -184,7 +184,7 @@ pub async fn handle_chain_socket(
 }
 
 // -----------------------------------------------------------------------------
-// File: src/ws/chain_events.rs
-// Project: snap-coin-msg
-// Created: 2026-03-19
+// File: chain_events.rs
+// Location: snap-coin-msg/src/ws/chain_events.rs
+// Created: 2026-03-23T00:00:00Z
 // -----------------------------------------------------------------------------
