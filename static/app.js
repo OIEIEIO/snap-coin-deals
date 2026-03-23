@@ -2,8 +2,8 @@
 // File: static/app.js
 // Tree: snap-coin-msg/static/app.js
 // Description: Multi-wallet panel layout - left/right columns, per-wallet ledger
-// Version: 2.7.2
-// Changes: JS clear on snap-amount-input after render to defeat Chrome autofill
+// Version: 2.7.3
+// Changes: COLLAPSE button moved to info row beside HIDE
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -505,6 +505,7 @@ function buildWalletPanel(w, col, expanded) {
                 <div class="wp-header-right-info">
                     <span class="wp-balance" id="balance-${w.id}"></span>
                     <button class="wp-btn-text" id="btn-hide-${w.id}">HIDE</button>
+                    <button class="wp-btn-text" id="toggle-${w.id}">COLLAPSE</button>
                 </div>
             </div>
             <div class="wp-header-actions">
@@ -513,7 +514,6 @@ function buildWalletPanel(w, col, expanded) {
                 <button class="wp-btn-text" id="btn-move-${w.id}">${col === 'left' ? 'MOVE RIGHT' : 'MOVE LEFT'}</button>
                 <button class="wp-btn-text" id="btn-up-${w.id}">UP</button>
                 <button class="wp-btn-text" id="btn-down-${w.id}">DOWN</button>
-                <button class="wp-btn-text" id="toggle-${w.id}">COLLAPSE</button>
             </div>
         `;
     } else {
