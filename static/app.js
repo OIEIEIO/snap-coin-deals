@@ -2,8 +2,8 @@
 // File: static/app.js
 // Tree: snap-coin-msg/static/app.js
 // Description: Multi-wallet panel layout - left/right columns, per-wallet ledger
-// Version: 2.7.3
-// Changes: COLLAPSE button moved to info row beside HIDE
+// Version: 2.7.4
+// Changes: Fix handleOpcodeEvent field names from_wallet/to_wallet
 // -----------------------------------------------------------------------------
 
 const state = {
@@ -262,12 +262,12 @@ function handleOpcodeEvent(event) {
 
     // find any wallet panel that matches sender or receiver
     Object.values(state.wallets).forEach(w => {
-        const isSender   = event.from === w.address;
-        const isReceiver = event.to   === w.address;
+        const isSender   = event.from_wallet === w.address;
+        const isReceiver = event.to_wallet   === w.address;
         if (!isSender && !isReceiver) return;
 
         const dir         = isSender ? 'outbound' : 'inbound';
-        const counterpart = isSender ? event.to : event.from;
+        const counterpart = isSender ? event.to_wallet : event.from_wallet;
         const ledgerId    = `ledger-${w.id}`;
 
         if (pending) {

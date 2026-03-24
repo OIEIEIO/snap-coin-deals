@@ -1,8 +1,10 @@
 // -----------------------------------------------------------------------------
-// File: src/transport/inbound.rs
-// Project: snap-coin-msg
-// Description: Inbound opcode tx watcher via snap-coin-pay deposit processor
-// Version: 0.4.0
+// File: inbound.rs
+// Location: snap-coin-msg/src/transport/inbound.rs
+// Version: 0.6.0
+// Description: Inbound tx watcher via snap-coin-pay deposit processor.
+//              Fires confirmed WsEvent for both opcodes and plain SNAP transfers.
+//              Fix: skip on_confirmation when sender == deposit_address.
 // -----------------------------------------------------------------------------
 
 use async_trait::async_trait;
@@ -25,7 +27,8 @@ pub struct OpcodeConfirmationHandler {
 #[async_trait]
 impl OnConfirmation for OpcodeConfirmationHandler {
     async fn on_confirmation(&self, deposit_address: Public, transaction: Transaction) {
-        let decoder = Decoder::new(&self.dictionary);
+        let decoder  = Decoder::new(&self.dictionary);
+        let addr_str = deposit_address.dump_base36();
 
         let sender = transaction
             .inputs
@@ -33,27 +36,48 @@ impl OnConfirmation for OpcodeConfirmationHandler {
             .map(|i| i.output_owner.dump_base36())
             .unwrap_or_default();
 
+        // skip if this fired for the sender's own watched address
+        if sender == addr_str {
+            return;
+        }
+
         for output in &transaction.outputs {
             if output.receiver != deposit_address {
                 continue;
             }
-            let raw = output.amount;
+            let raw        = output.amount;
+            let amount_str = format!("0.{:08}", raw);
+
             if let Some(opcode) = decoder.decode_amount(raw) {
-                let event = WsEvent {
+                let _ = self.tx.send(WsEvent {
                     from_wallet: sender.clone(),
-                    to_wallet:   deposit_address.dump_base36(),
-                    amount:      format!("0.{:08}", raw),
+                    to_wallet:   addr_str.clone(),
+                    amount:      amount_str.clone(),
                     meaning:     opcode.meaning.clone(),
                     category:    opcode.category.clone(),
                     pending:     false,
-                };
-                let _ = self.tx.send(event);
+                });
                 tracing::info!(
-                    "inbound opcode: {} → {} [{}] {}",
+                    "inbound opcode confirmed: {} → {} [{}] {}",
                     &sender[..8],
-                    &deposit_address.dump_base36()[..8],
+                    &addr_str[..8],
                     opcode.category,
                     opcode.meaning
+                );
+            } else {
+                let _ = self.tx.send(WsEvent {
+                    from_wallet: sender.clone(),
+                    to_wallet:   addr_str.clone(),
+                    amount:      amount_str.clone(),
+                    meaning:     "SNAP transfer".to_string(),
+                    category:    "transfer".to_string(),
+                    pending:     false,
+                });
+                tracing::info!(
+                    "inbound transfer confirmed: {} → {} {}",
+                    &sender[..8],
+                    &addr_str[..8],
+                    amount_str
                 );
             }
         }
@@ -66,9 +90,9 @@ pub struct InboundWatcher {
 
 impl InboundWatcher {
     pub async fn new(
-        node_addr: SocketAddr,
+        node_addr:  SocketAddr,
         dictionary: Arc<Dictionary>,
-        tx: broadcast::Sender<WsEvent>,
+        tx:         broadcast::Sender<WsEvent>,
     ) -> Self {
         let chain = ApiChainInteraction::new(node_addr)
             .await
@@ -95,7 +119,7 @@ impl InboundWatcher {
 }
 
 // -----------------------------------------------------------------------------
-// File: src/transport/inbound.rs
-// Project: snap-coin-msg
-// Created: 2026-03-19
+// File: inbound.rs
+// Location: snap-coin-msg/src/transport/inbound.rs
+// Created: 2026-03-19T00:00:00Z
 // -----------------------------------------------------------------------------

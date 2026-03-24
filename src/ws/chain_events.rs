@@ -1,10 +1,10 @@
 // -----------------------------------------------------------------------------
 // File: chain_events.rs
 // Location: snap-coin-msg/src/ws/chain_events.rs
-// Version: 0.4.0
+// Version: 1.0.0
 // Description: Chain event broadcaster - dictionary aware, height tracking.
-//              Updated for snap-coin v16: ChainEvent moved from
-//              full_node::node_state to node::chain_events.
+//              Fires pending WsEvent on mempool for opcodes and plain transfers.
+//              Confirmed events handled by inbound.rs via DepositPaymentProcessor.
 // -----------------------------------------------------------------------------
 
 use axum::extract::ws::{Message, WebSocket};
@@ -31,9 +31,9 @@ pub struct ChainEventMsg {
 
 pub async fn start_chain_event_broadcaster(
     node_addr:         SocketAddr,
-    tx:                broadcast::Sender<ChainEventMsg>,
+    chain_tx:          broadcast::Sender<ChainEventMsg>,
     dictionary:        Arc<Dictionary>,
-    opcode_tx:         broadcast::Sender<WsEvent>,
+    tx:                broadcast::Sender<WsEvent>,
     watched_addresses: Arc<RwLock<HashSet<String>>>,
 ) {
     let chain = match ApiChainInteraction::new(node_addr).await {
@@ -45,7 +45,7 @@ pub async fn start_chain_event_broadcaster(
     };
 
     chain.start_listener(None).await.ok();
-    let mut rx    = chain.subscribe();
+    let mut rx = chain.subscribe();
     let height_chain = match ApiChainInteraction::new(node_addr).await {
         Ok(c)  => Some(c),
         Err(_) => None,
@@ -64,6 +64,7 @@ pub async fn start_chain_event_broadcaster(
                                     current_height = h as u64;
                                 }
                             }
+
                             let hash = block.meta.hash
                                 .map(|h| format!("{:?}", h))
                                 .unwrap_or_else(|| "none".to_string());
@@ -96,15 +97,17 @@ pub async fn start_chain_event_broadcaster(
                                 let amount_str = format!("0.{:08}", output.amount);
 
                                 if let Some(entry) = dictionary.lookup_amount(&amount_str) {
-                                    opcode_parts.push(format!(
-                                        "{} → {}",
-                                        &receiver[..8],
-                                        entry.meaning
-                                    ));
                                     is_opcode = true;
+                                    opcode_parts.push(format!(
+                                        "{} → {} → {} {}",
+                                        &sender[..8],
+                                        &receiver[..8],
+                                        entry.meaning,
+                                        amount_str,
+                                    ));
 
                                     if watched.contains(&receiver) {
-                                        let _ = opcode_tx.send(WsEvent {
+                                        let _ = tx.send(WsEvent {
                                             from_wallet: sender.clone(),
                                             to_wallet:   receiver.clone(),
                                             amount:      amount_str.clone(),
@@ -113,31 +116,58 @@ pub async fn start_chain_event_broadcaster(
                                             pending:     true,
                                         });
                                     }
-                                } else {
-                                    opcode_parts.push(format!(
-                                        "{}  {}",
-                                        &receiver[..8],
-                                        amount_str
-                                    ));
+                                }
+                                // non-opcode outputs not pushed to opcode_parts
+                            }
+
+                            // plain transfer — fire pending only, confirmed via inbound.rs
+                            if !is_opcode {
+                                for output in &transaction.outputs {
+                                    let receiver   = output.receiver.dump_base36();
+                                    let amount_str = format!("0.{:08}", output.amount);
+
+                                    if watched.contains(&receiver) {
+                                        let _ = tx.send(WsEvent {
+                                            from_wallet: sender.clone(),
+                                            to_wallet:   receiver.clone(),
+                                            amount:      amount_str.clone(),
+                                            meaning:     "SNAP transfer".to_string(),
+                                            category:    "transfer".to_string(),
+                                            pending:     true,
+                                        });
+                                        break; // one per transaction
+                                    }
                                 }
                             }
 
+                            let detail = if is_opcode {
+                                opcode_parts.join("  |  ")
+                            } else {
+                                transaction.outputs.first().map(|o| {
+                                    let receiver   = o.receiver.dump_base36();
+                                    let amount_str = format!("0.{:08}", o.amount);
+                                    format!("{} → {} TRANSFER {}", &sender[..8], &receiver[..8], amount_str)
+                                }).unwrap_or_default()
+                            };
+
                             ChainEventMsg {
                                 event_type: "MEMPOOL".to_string(),
-                                detail:     opcode_parts.join("  |  "),
+                                detail,
                                 height:     None,
                                 is_opcode,
                             }
                         }
 
-                        ChainEvent::TransactionExpiration { transaction } => ChainEventMsg {
-                            event_type: "EXPIRED".to_string(),
-                            detail:     format!("{:?}", transaction),
-                            height:     None,
-                            is_opcode:  false,
-                        },
+                        ChainEvent::TransactionExpiration { transaction } => {
+                            ChainEventMsg {
+                                event_type: "EXPIRED".to_string(),
+                                detail:     format!("{:?}", transaction),
+                                height:     None,
+                                is_opcode:  false,
+                            }
+                        }
                     };
-                    tx.send(msg).ok();
+                    chain_tx.send(msg).ok();
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
                     tracing::warn!("chain event broadcaster lagged {} messages", n);
