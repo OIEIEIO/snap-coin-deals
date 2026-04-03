@@ -1,24 +1,25 @@
 // -----------------------------------------------------------------------------
 // File: src/api/mod.rs
-// Tree: snap-coin-msg/src/api/mod.rs
-// Description: API module exports
-// Version: 0.6.0
-// Changes: no new modules — delete_wallet lives in wallets.rs
+// Tree: snap-coin-deals/src/api/mod.rs
+// Description: API module exports for snap-coin-deals
+// Version: 0.1.0
+// Comments: Removed: contacts, conversations, send, watchlist, wallet_column
+//           Added: auth, members, businesses, deals, claims
 // -----------------------------------------------------------------------------
 
+pub mod auth;
+pub mod businesses;
 pub mod chain;
-pub mod contacts;
-pub mod conversations;
+pub mod claims;
+pub mod deals;
 pub mod dictionary;
 pub mod history;
+pub mod members;
 pub mod node;
-pub mod send;
 pub mod wallets;
-pub mod watchlist;
-pub mod wallet_column;
 
 // -----------------------------------------------------------------------------
 // File: src/api/mod.rs
-// Tree: snap-coin-msg/src/api/mod.rs
-// Created: 2026-03-19 | Updated: 2026-03-21
+// Tree: snap-coin-deals/src/api/mod.rs
+// Created: 2026-04-02 | Version: 0.1.0
 // -----------------------------------------------------------------------------

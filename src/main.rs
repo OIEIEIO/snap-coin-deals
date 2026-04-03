@@ -1,9 +1,14 @@
 // -----------------------------------------------------------------------------
 // File: src/main.rs
-// Tree: snap-coin-msg/src/main.rs
-// Description: Axum server bootstrap, routes, startup
-// Version: 0.13.0
-// Changes: added /api/wallets/reorder route
+// Tree: snap-coin-deals/src/main.rs
+// Description: Axum server bootstrap, routes, and startup for snap-coin-deals
+// Version: 0.1.0
+// Comments: Auth middleware applied to all /api routes except /api/auth/login
+//           Public routes: /api/auth/login, /api/businesses, /api/deals, static
+//           Admin-only routes noted inline — enforce in frontend until role
+//           middleware is added in a future version
+//           Removes: conversations, send, contacts, watchlist, wallet_column
+//           Adds: auth, members, businesses, deals, claims
 // -----------------------------------------------------------------------------
 
 #![allow(dead_code)]
@@ -11,6 +16,7 @@
 
 use axum::{
     extract::{State, WebSocketUpgrade},
+    middleware,
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -22,7 +28,6 @@ use tower_http::services::ServeDir;
 mod api;
 mod app_state;
 mod config;
-mod conversation;
 mod transport;
 mod wallet;
 mod ws;
@@ -77,17 +82,28 @@ async fn main() {
 
     let state = Arc::new(AppState::new(dictionary, node_addr, opcode_genesis_height).await);
 
-    let app = Router::new()
+    // -------------------------------------------------------------------------
+    // Public routes — no auth required
+    // -------------------------------------------------------------------------
+    let public_routes = Router::new()
+        .route("/api/auth/login",               post(api::auth::login))
+        .route("/api/auth/verify",              get(api::auth::verify))
+        .route("/api/businesses",               get(api::businesses::list_businesses))
+        .route("/api/deals",                    get(api::deals::list_deals));
+
+    // -------------------------------------------------------------------------
+    // Protected routes — require bearer token
+    // -------------------------------------------------------------------------
+    let protected_routes = Router::new()
+        // websocket
         .route("/ws",                           get(ws_handler))
         .route("/ws/chain",                     get(ws_chain_handler))
+        // chain + node
         .route("/api/dictionary",               get(api::dictionary::get_dictionary))
         .route("/api/node/status",              get(api::node::node_status))
         .route("/api/chain/height",             get(api::chain::get_height))
         .route("/api/chain/balance/{address}",  get(api::chain::get_balance))
-        .route("/api/send",                     post(api::send::send_message))
-        .route("/api/conversations",            post(api::conversations::get_conversation))
-        .route("/api/conversations/register",   post(api::conversations::register_pair))
-        .route("/api/history",                  post(api::history::get_history))
+        // wallets
         .route("/api/wallets",                  get(api::wallets::list_wallets))
         .route("/api/wallets/add",              post(api::wallets::add_wallet))
         .route("/api/wallets/create",           post(api::wallets::create_wallet))
@@ -95,11 +111,43 @@ async fn main() {
         .route("/api/wallets/delete",           post(api::wallets::delete_wallet))
         .route("/api/wallets/reorder",          post(api::wallets::reorder_wallet))
         .route("/api/wallets/send-snap",        post(api::wallets::send_snap))
-        .route("/api/contacts",                 get(api::contacts::list_contacts))
-        .route("/api/contacts/add",             post(api::contacts::add_contact))
-        .route("/api/watchlist",                get(api::watchlist::list_watchlist))
-        .route("/api/watchlist/add",            post(api::watchlist::add_watch))
-        .route("/api/watchlist/remove",         post(api::watchlist::remove_watch))
+        // history
+        .route("/api/history",                  post(api::history::get_history))
+        // members
+        .route("/api/members/enroll",           post(api::members::enroll_member))
+        .route("/api/members/lookup",           post(api::members::lookup_member))
+        .route("/api/members",                  get(api::members::list_members))
+        .route("/api/members/suspend",          post(api::members::suspend_member))
+        // businesses
+        .route("/api/businesses/all",           get(api::businesses::list_businesses_all))
+        .route("/api/businesses/enroll",        post(api::businesses::enroll_business))
+        .route("/api/businesses/lookup",        post(api::businesses::lookup_business))
+        .route("/api/businesses/update",        post(api::businesses::update_business))
+        .route("/api/businesses/suspend",       post(api::businesses::suspend_business))
+        // deals
+        .route("/api/deals/post",               post(api::deals::post_deal))
+        .route("/api/deals/by-business",        post(api::deals::list_deals_by_business))
+        .route("/api/deals/get",                post(api::deals::get_deal))
+        .route("/api/deals/update",             post(api::deals::update_deal))
+        .route("/api/deals/cancel",             post(api::deals::cancel_deal))
+        // claims
+        .route("/api/claims/create",            post(api::claims::create_claim))
+        .route("/api/claims/redeem",            post(api::claims::redeem_claim))
+        .route("/api/claims/update-tx",         post(api::claims::update_snap_tx))
+        .route("/api/claims/verify",            post(api::claims::verify_claim))
+        .route("/api/claims/by-member",         post(api::claims::list_claims_by_member))
+        .route("/api/claims/by-business",       post(api::claims::list_claims_by_business))
+        // auth middleware applied to all protected routes
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            api::auth::require_auth,
+        ));
+
+    // -------------------------------------------------------------------------
+    // Merge and serve
+    // -------------------------------------------------------------------------
+    let app = public_routes
+        .merge(protected_routes)
         .fallback_service(ServeDir::new("static"))
         .with_state(state);
 
@@ -107,9 +155,9 @@ async fn main() {
         .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
 
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let port     = listener.local_addr().unwrap().port();
 
-    tracing::info!("snap-coin-msg listening on {}", bind);
+    tracing::info!("snap-coin-deals listening on {}", bind);
     tracing::info!("open -> http://localhost:{}", port);
 
     axum::serve(listener, app).await.unwrap();
@@ -117,6 +165,6 @@ async fn main() {
 
 // -----------------------------------------------------------------------------
 // File: src/main.rs
-// Tree: snap-coin-msg/src/main.rs
-// Created: 2026-03-19 | Updated: 2026-03-22
+// Tree: snap-coin-deals/src/main.rs
+// Created: 2026-04-02 | Version: 0.1.0
 // -----------------------------------------------------------------------------

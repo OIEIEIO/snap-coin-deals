@@ -209,6 +209,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-link",
 ]
@@ -1327,11 +1328,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "snap-coin-msg"
+name = "snap-coin-deals"
 version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
+ "chrono",
  "dotenvy",
  "futures-util",
  "hex",

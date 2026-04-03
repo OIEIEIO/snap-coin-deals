@@ -1,10 +1,13 @@
 // -----------------------------------------------------------------------------
 // File: src/api/wallets.rs
-// Tree: snap-coin-msg/src/api/wallets.rs
+// Tree: snap-coin-deals/src/api/wallets.rs
 // Description: REST endpoints for wallet management - add, create, list, delete, reorder, send-snap
-// Version: 0.8.0
-// Changes: delete_wallet now also removes matching contact
+// Version: 0.9.0
+// Comments: Removed contacts auto-add/remove logic — no contacts in deals app
 // -----------------------------------------------------------------------------
+
+#![allow(dead_code)]
+#![allow(unused)]
 
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
@@ -13,7 +16,6 @@ use std::sync::Arc;
 use crate::app_state::AppState;
 use crate::wallet::store::{WalletEntry, WalletsFile};
 use crate::wallet::pin::{encrypt_key, decrypt_key};
-use crate::config::contacts::{Contact, ContactsFile};
 
 #[derive(Debug, Serialize)]
 pub struct WalletsResponse {
@@ -137,10 +139,6 @@ pub async fn add_wallet(
 
     let order = file.next_order();
 
-    let label   = req.label.clone();
-    let address = req.address.clone();
-    let id      = req.id.clone();
-
     file.add(req.id, WalletEntry {
         label:         req.label,
         address:       req.address,
@@ -152,16 +150,6 @@ pub async fn add_wallet(
 
     file.save("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // auto-add to contacts using label as nickname
-    if let Ok(mut contacts) = ContactsFile::load("config/contacts.json") {
-        let contact_id = format!("c_{}", &id[2..]);
-        contacts.add(contact_id, Contact {
-            nickname: label,
-            address,
-        });
-        let _ = contacts.save("config/contacts.json");
-    }
 
     Ok(StatusCode::CREATED)
 }
@@ -192,16 +180,6 @@ pub async fn create_wallet(
 
     file.save("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // auto-add to contacts using label as nickname
-    if let Ok(mut contacts) = ContactsFile::load("config/contacts.json") {
-        let contact_id = format!("c_{}", &req.id[2..]);
-        contacts.add(contact_id, Contact {
-            nickname: req.label.clone(),
-            address:  address.clone(),
-        });
-        let _ = contacts.save("config/contacts.json");
-    }
 
     tracing::info!("wallet created: {} {}", req.label, &address[..8]);
 
@@ -241,13 +219,6 @@ pub async fn delete_wallet(
 
     file.save("config/wallets.json")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // remove matching contact
-    let contact_id = format!("c_{}", &req.id[2..]);
-    if let Ok(mut contacts) = ContactsFile::load("config/contacts.json") {
-        let _ = contacts.remove(&contact_id);
-        let _ = contacts.save("config/contacts.json");
-    }
 
     Ok(StatusCode::OK)
 }
@@ -316,6 +287,6 @@ pub async fn send_snap(
 
 // -----------------------------------------------------------------------------
 // File: src/api/wallets.rs
-// Tree: snap-coin-msg/src/api/wallets.rs
-// Created: 2026-03-19 | Updated: 2026-03-22
+// Tree: snap-coin-deals/src/api/wallets.rs
+// Created: 2026-03-19 | Updated: 2026-04-02
 // -----------------------------------------------------------------------------
