@@ -2,11 +2,17 @@
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
 // Description: SNAP Deals frontend — auth, member, business, admin views
-// Version: 0.2.0
+// Version: 0.7.0
 // Comments: Fixed hidden/active class conflict — show/hide use display directly
 //           Role-based views — member | business | admin
 //           Token stored in sessionStorage only — cleared on tab close
 //           API helper attaches bearer token to all protected requests
+//           Added: collapsible QR code on pending claim rows
+//           Added: expandable deal cards — collapsed = header only
+//           Fixed: business name no longer truncated in card header
+//           Added: profile page — member info from lookup, metrics grid
+//           Added: wallet address step after member login
+//           Added: admin enroll member — create wallet, enroll, send SNAP
 // =============================================================================
 
 'use strict';
@@ -24,7 +30,7 @@ const state = {
 };
 
 // -----------------------------------------------------------------------------
-// Show / hide helpers — bypass .hidden !important conflict
+// Show / hide helpers
 // -----------------------------------------------------------------------------
 
 function show(el) {
@@ -63,7 +69,7 @@ const GET  = (path, auth = true)       => api('GET',  path, null, auth);
 const POST = (path, body, auth = true) => api('POST', path, body, auth);
 
 // -----------------------------------------------------------------------------
-// Auth
+// Auth — step 1: token
 // -----------------------------------------------------------------------------
 
 async function login() {
@@ -87,12 +93,60 @@ async function login() {
         sessionStorage.setItem('snap_token', token);
         sessionStorage.setItem('snap_role',  res.role);
 
+        if (res.role === 'member') {
+            // step 2 — ask for wallet address
+            showWalletStep();
+        } else {
+            // admin/business — go straight to app
+            await bootApp();
+        }
+
+    } catch (e) {
+        show(err);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Auth — step 2: wallet address (member only)
+// -----------------------------------------------------------------------------
+
+function showWalletStep() {
+    hide('login-step-token');
+    hide('login-wallet-error');
+    document.getElementById('login-wallet-input').value = '';
+    show('login-step-wallet');
+    setTimeout(() => document.getElementById('login-wallet-input')?.focus(), 100);
+}
+
+async function submitWalletAddress() {
+    const wallet = document.getElementById('login-wallet-input').value.trim();
+    const err    = document.getElementById('login-wallet-error');
+
+    if (!wallet) return;
+
+    hide(err);
+
+    try {
+        const res = await POST('/api/members/lookup', { wallet });
+
+        if (!res.found || !res.active) {
+            show(err);
+            return;
+        }
+
+        state.wallet = wallet;
+        sessionStorage.setItem('snap_wallet', wallet);
+
         await bootApp();
 
     } catch (e) {
         show(err);
     }
 }
+
+// -----------------------------------------------------------------------------
+// Logout
+// -----------------------------------------------------------------------------
 
 function logout() {
     sessionStorage.removeItem('snap_token');
@@ -106,8 +160,12 @@ function logout() {
     state.wallet     = null;
 
     hide('screen-app');
-    showFlex('screen-login');
+    // reset login to step 1
+    show('login-step-token');
+    hide('login-step-wallet');
+    hide('login-error');
     document.getElementById('login-token-input').value = '';
+    showFlex('screen-login');
 }
 
 // -----------------------------------------------------------------------------
@@ -168,25 +226,15 @@ function renderNav() {
 }
 
 function switchView(viewId) {
-    // hide all views
-    document.querySelectorAll('.view').forEach(v => {
-        v.style.display = 'none';
-    });
+    document.querySelectorAll('.view').forEach(v => { v.style.display = 'none'; });
+    document.querySelectorAll('.nav-tab').forEach(t => { t.classList.remove('active'); });
 
-    // deactivate all tabs
-    document.querySelectorAll('.nav-tab').forEach(t => {
-        t.classList.remove('active');
-    });
-
-    // show target view
     const view = document.getElementById(`view-${viewId}`);
     if (view) view.style.display = 'block';
 
-    // activate nav tab
     const tab = document.querySelector(`.nav-tab[data-view="${viewId}"]`);
     if (tab) tab.classList.add('active');
 
-    // load content
     loadView(viewId);
 }
 
@@ -254,7 +302,7 @@ async function fetchBalance(wallet) {
     if (!wallet || wallet.startsWith('snap_placeholder')) return null;
     try {
         const res = await GET(`/api/chain/balance/${wallet}`);
-        return res.balance ?? null;
+        return res.display ?? null;
     } catch { return null; }
 }
 
@@ -297,8 +345,15 @@ async function loadDeals() {
             return renderDealCard(deal, biz, claimed);
         }).join('');
 
+        document.querySelectorAll('.deal-card-header').forEach(header => {
+            header.addEventListener('click', () => toggleDealCard(header.dataset.dealId));
+        });
+
         document.querySelectorAll('.btn-claim[data-deal-id]').forEach(btn => {
-            btn.addEventListener('click', () => openClaimModal(btn.dataset.dealId, deals, businesses));
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openClaimModal(btn.dataset.dealId, deals, businesses);
+            });
         });
 
     } catch (e) {
@@ -313,31 +368,43 @@ function renderDealCard(deal, biz, claimed) {
         ? `${deal.claims_max - deal.claims_count} left`
         : 'Unlimited';
 
-    const footer = claimed
+    const claimBtn = claimed
         ? `<div class="claimed-badge">✓ CLAIMED</div>`
         : `<button class="btn-claim" data-deal-id="${deal.id}">CLAIM THIS DEAL</button>`;
 
     return `
-        <div class="deal-card${claimed ? ' claimed' : ''}">
-            <div class="deal-card-top">
+        <div class="deal-card${claimed ? ' claimed' : ''}" id="deal-card-${deal.id}">
+            <div class="deal-card-header" data-deal-id="${deal.id}">
                 <div class="biz-avatar ${category}">${initials}</div>
-                <div class="biz-info">
-                    <div class="biz-name">${biz.name || 'Local Business'}</div>
+                <div class="deal-card-header-info">
+                    <div class="biz-name-full">${biz.name || 'Local Business'}</div>
                     <div class="biz-category">${category}</div>
                 </div>
                 <div class="deal-value-pill">${formatCAD(deal.cad_value)}</div>
+                <span class="deal-expand-icon">▾</span>
             </div>
-            <div class="deal-card-body">
+            <div class="deal-card-body" id="deal-body-${deal.id}">
                 <div class="deal-title">${deal.title}</div>
                 <div class="deal-description">${deal.description}</div>
                 <div class="deal-meta">
-                    <span class="deal-meta-item">🏷 ${left}</span>
-                    <span class="deal-meta-item">📅 Exp ${formatDate(deal.expires_at)}</span>
+                    <span class="deal-meta-item deal-meta-prominent">🏷 ${left}</span>
+                    <span class="deal-meta-item deal-meta-prominent">📅 Exp ${formatDate(deal.expires_at)}</span>
                 </div>
+                <div class="deal-card-footer">${claimBtn}</div>
             </div>
-            <div class="deal-card-footer">${footer}</div>
         </div>
     `;
+}
+
+function toggleDealCard(dealId) {
+    const body = document.getElementById(`deal-body-${dealId}`);
+    const card = document.getElementById(`deal-card-${dealId}`);
+    const icon = card?.querySelector('.deal-expand-icon');
+    if (!body) return;
+
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    if (icon) icon.textContent = isOpen ? '▾' : '▴';
 }
 
 // -----------------------------------------------------------------------------
@@ -426,29 +493,78 @@ async function loadMyClaims() {
         const dealMap  = Object.fromEntries((dealsRes.deals || []).map(d => [d.id, d]));
 
         document.getElementById('my-claims-list').innerHTML = claims.map(claim => {
-            const deal   = dealMap[claim.deal_id]    || {};
-            const biz    = bizMap[claim.business_id] || {};
-            const status = claim.redeemed ? 'redeemed' : 'pending';
-            const label  = claim.redeemed ? 'REDEEMED' : 'PENDING';
-
-            return `
-                <div class="claim-row">
-                    <div class="biz-avatar ${(biz.category||'other').toLowerCase()}"
-                         style="width:36px;height:36px;font-size:12px">
-                        ${avatarInitials(biz.name || 'SD')}
-                    </div>
-                    <div class="claim-row-info">
-                        <div class="claim-row-title">${deal.title || claim.deal_id}</div>
-                        <div class="claim-row-biz">${biz.name || ''} · ${formatDate(claim.claimed_at)}</div>
-                    </div>
-                    <div class="claim-row-value">${formatCAD(claim.cad_value_redeemed)}</div>
-                    <div class="claim-status ${status}">${label}</div>
-                </div>
-            `;
+            const deal = dealMap[claim.deal_id]    || {};
+            const biz  = bizMap[claim.business_id] || {};
+            return renderClaimRow(claim, deal, biz);
         }).join('');
+
+        document.querySelectorAll('.btn-show-qr').forEach(btn => {
+            btn.addEventListener('click', () => toggleClaimQR(btn.dataset.claimId));
+        });
 
     } catch (e) {
         showEmpty('my-claims-list', '⚠️', 'Could not load claims');
+    }
+}
+
+function renderClaimRow(claim, deal, biz) {
+    const status   = claim.redeemed ? 'redeemed' : 'pending';
+    const label    = claim.redeemed ? 'REDEEMED' : 'PENDING';
+    const category = (biz.category || 'other').toLowerCase();
+
+    const qrToggle = !claim.redeemed
+        ? `<button class="btn-show-qr" data-claim-id="${claim.id}">SHOW QR</button>`
+        : '';
+
+    return `
+        <div class="claim-row" id="claim-row-${claim.id}">
+            <div class="claim-row-main">
+                <div class="biz-avatar ${category}"
+                     style="width:36px;height:36px;font-size:12px">
+                    ${avatarInitials(biz.name || 'SD')}
+                </div>
+                <div class="claim-row-info">
+                    <div class="claim-row-title">${deal.title || claim.deal_id}</div>
+                    <div class="claim-row-biz">${biz.name || ''} · ${formatDate(claim.claimed_at)}</div>
+                </div>
+                <div class="claim-row-value">${formatCAD(claim.cad_value_redeemed)}</div>
+                <div class="claim-status ${status}">${label}</div>
+                ${qrToggle}
+            </div>
+            <div class="claim-qr-panel" id="qr-panel-${claim.id}">
+                <div class="claim-qr-label">SHOW THIS AT THE COUNTER</div>
+                <div class="claim-qr-canvas" id="qr-canvas-${claim.id}"></div>
+                <div class="claim-qr-id">${claim.id}</div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleClaimQR(claimId) {
+    const panel = document.getElementById(`qr-panel-${claimId}`);
+    const btn   = document.querySelector(`.btn-show-qr[data-claim-id="${claimId}"]`);
+    if (!panel) return;
+
+    const isOpen = panel.classList.contains('open');
+
+    if (isOpen) {
+        panel.classList.remove('open');
+        if (btn) btn.textContent = 'SHOW QR';
+    } else {
+        panel.classList.add('open');
+        if (btn) btn.textContent = 'HIDE QR';
+
+        const canvas = document.getElementById(`qr-canvas-${claimId}`);
+        if (canvas && !canvas.hasChildNodes()) {
+            new QRCode(canvas, {
+                text:         claimId,
+                width:        180,
+                height:       180,
+                colorDark:    '#000000',
+                colorLight:   '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+        }
     }
 }
 
@@ -457,27 +573,89 @@ async function loadMyClaims() {
 // -----------------------------------------------------------------------------
 
 async function loadProfile() {
-    const wallet  = state.wallet || '—';
+    const content = document.getElementById('profile-content');
+    content.innerHTML = `<div class="loading-pulse">Loading</div>`;
+
+    let memberName    = '—';
+    let enrolledAt    = '—';
+    let walletAddress = state.wallet || '—';
+
+    if (state.wallet) {
+        try {
+            const res = await POST('/api/members/lookup', { wallet: state.wallet });
+            if (res.found) {
+                memberName = res.name        || '—';
+                enrolledAt = formatDate(res.enrolled_at);
+            }
+        } catch {}
+    }
+
     const balance = await fetchBalance(state.wallet);
 
-    document.getElementById('profile-content').innerHTML = `
-        <div class="profile-card">
-            <div class="profile-label">Role</div>
-            <div class="profile-value">${(state.role || '—').toUpperCase()}</div>
+    let claimsTotal    = 0;
+    let claimsPending  = 0;
+    let claimsRedeemed = 0;
+    let totalSaved     = 0;
+
+    try {
+        const res    = await POST('/api/claims/by-member', { member_id: state.wallet || 'member_unknown' });
+        const claims = res.claims || [];
+        claimsTotal    = claims.length;
+        claimsPending  = claims.filter(c => !c.redeemed).length;
+        claimsRedeemed = claims.filter(c =>  c.redeemed).length;
+        totalSaved     = res.total_value || 0;
+    } catch {}
+
+    content.innerHTML = `
+        <div class="profile-hero">
+            <div class="profile-avatar">${avatarInitials(memberName)}</div>
+            <div class="profile-hero-info">
+                <div class="profile-name">${memberName}</div>
+                <div class="profile-role-tag">${(state.role || '').toUpperCase()}</div>
+            </div>
         </div>
+
+        <div class="profile-card">
+            <div class="profile-label">Member Since</div>
+            <div class="profile-value">${enrolledAt}</div>
+        </div>
+
         <div class="profile-card">
             <div class="profile-label">Wallet Address</div>
-            <div class="profile-value">${wallet}</div>
+            <div class="profile-value profile-address">${walletAddress}</div>
         </div>
+
         <div class="profile-card">
             <div class="profile-label">SNAP Balance</div>
             <div class="profile-value" style="color:var(--accent)">
-                ${balance !== null ? `${Number(balance).toFixed(8)} SNAP` : '—'}
+                ${balance !== null ? `${balance} SNAP` : '—'}
             </div>
         </div>
+
         <div class="profile-card">
             <div class="profile-label">Network</div>
             <div class="profile-value">Halifax · Dartmouth · Nova Scotia</div>
+        </div>
+
+        <div class="profile-section-title">My Activity</div>
+
+        <div class="profile-metrics">
+            <div class="metric-card">
+                <div class="metric-value">${claimsTotal}</div>
+                <div class="metric-label">Total Claims</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" style="color:var(--amber)">${claimsPending}</div>
+                <div class="metric-label">Pending</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" style="color:var(--green)">${claimsRedeemed}</div>
+                <div class="metric-label">Redeemed</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" style="color:var(--accent)">${formatCAD(totalSaved)}</div>
+                <div class="metric-label">Total Saved</div>
+            </div>
         </div>
     `;
 }
@@ -679,7 +857,8 @@ async function loadAdminMembers() {
         const res     = await GET('/api/members');
         const members = res.members || [];
 
-        document.getElementById('admin-members-count').textContent = `${res.total || 0} total`;
+        document.getElementById('admin-members-count-bar').innerHTML =
+            `<div class="admin-count-bar">${res.total || 0} members enrolled</div>`;
 
         if (members.length === 0) {
             showEmpty('admin-members-list', '👥', 'No members enrolled yet');
@@ -692,7 +871,7 @@ async function loadAdminMembers() {
                 <div class="admin-row-info">
                     <div class="admin-row-name">${m.name}</div>
                     <div class="admin-row-meta">
-                        ${truncate(m.wallet, 20)} · Enrolled ${formatDate(m.enrolled_at)}
+                        ${truncate(m.wallet, 24)} · Enrolled ${formatDate(m.enrolled_at)}
                     </div>
                 </div>
                 <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent)">
@@ -702,6 +881,104 @@ async function loadAdminMembers() {
         `).join('');
 
     } catch { showEmpty('admin-members-list', '⚠️', 'Could not load members'); }
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN — Enroll member modal
+// -----------------------------------------------------------------------------
+
+function openEnrollMemberModal() {
+    ['enroll-name','enroll-admin-wallet-id','enroll-wallet-pin'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('enroll-starter-snap').value = '100';
+    document.getElementById('enroll-error').style.display = 'none';
+    showFlex('modal-enroll-member');
+    setTimeout(() => document.getElementById('enroll-name')?.focus(), 100);
+}
+
+function closeEnrollMemberModal() {
+    hide('modal-enroll-member');
+}
+
+async function submitEnrollMember() {
+    const name          = document.getElementById('enroll-name').value.trim();
+    const starterSnap   = parseFloat(document.getElementById('enroll-starter-snap').value) || 100;
+    const adminWalletId = document.getElementById('enroll-admin-wallet-id').value.trim();
+    const pin           = document.getElementById('enroll-wallet-pin').value.trim();
+    const errEl         = document.getElementById('enroll-error');
+
+    errEl.style.display = 'none';
+
+    if (!name || !adminWalletId || !pin) {
+        errEl.textContent   = 'All fields are required';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-enroll-confirm');
+    btn.textContent = 'ENROLLING…';
+    btn.disabled    = true;
+
+    try {
+        // step 1 — create a new wallet for the member
+        const memberId   = `member_${Date.now()}`;
+        const walletRes  = await POST('/api/wallets/create', {
+            id:    memberId,
+            label: name,
+            pin,
+        });
+
+        const memberAddress = walletRes.address;
+
+        // step 2 — enroll the member
+        await POST('/api/members/enroll', {
+            id:     memberId,
+            name,
+            wallet: memberAddress,
+        });
+
+        // step 3 — send starter SNAP from admin wallet to member wallet
+        await POST('/api/wallets/send-snap', {
+            from_wallet_id: adminWalletId,
+            to_address:     memberAddress,
+            amount:         starterSnap,
+            pin,
+        });
+
+        closeEnrollMemberModal();
+        showEnrollResult(name, memberAddress, starterSnap);
+        await loadAdminMembers();
+
+    } catch (e) {
+        errEl.textContent   = `Enrollment failed: ${e.message}`;
+        errEl.style.display = 'block';
+        btn.textContent = 'ENROLL';
+        btn.disabled    = false;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN — Enroll result modal
+// -----------------------------------------------------------------------------
+
+function showEnrollResult(name, address, snap) {
+    document.getElementById('enroll-result-name').textContent = name;
+    document.getElementById('enroll-result-address').textContent = address;
+    document.getElementById('enroll-result-snap').textContent = `${snap} SNAP`;
+    showFlex('modal-enroll-result');
+}
+
+function closeEnrollResult() {
+    hide('modal-enroll-result');
+}
+
+function copyEnrollAddress() {
+    const addr = document.getElementById('enroll-result-address').textContent;
+    navigator.clipboard.writeText(addr).catch(() => {});
+    const btn = document.getElementById('btn-copy-enroll-address');
+    btn.textContent = 'COPIED ✓';
+    setTimeout(() => { btn.textContent = 'COPY WALLET ADDRESS'; }, 2000);
 }
 
 // -----------------------------------------------------------------------------
@@ -798,6 +1075,12 @@ document.getElementById('btn-login')
 document.getElementById('login-token-input')
     .addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 
+document.getElementById('btn-login-wallet')
+    .addEventListener('click', submitWalletAddress);
+
+document.getElementById('login-wallet-input')
+    .addEventListener('keydown', e => { if (e.key === 'Enter') submitWalletAddress(); });
+
 document.getElementById('btn-logout')
     .addEventListener('click', logout);
 
@@ -828,13 +1111,34 @@ document.getElementById('modal-claim')
 document.getElementById('modal-post-deal')
     .addEventListener('click', e => { if (e.target === e.currentTarget) closePostDealModal(); });
 
+document.getElementById('btn-enroll-member')
+    .addEventListener('click', openEnrollMemberModal);
+
+document.getElementById('btn-enroll-cancel')
+    .addEventListener('click', closeEnrollMemberModal);
+
+document.getElementById('btn-enroll-confirm')
+    .addEventListener('click', submitEnrollMember);
+
+document.getElementById('modal-enroll-member')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEnrollMemberModal(); });
+
+document.getElementById('btn-copy-enroll-address')
+    .addEventListener('click', copyEnrollAddress);
+
+document.getElementById('btn-enroll-result-done')
+    .addEventListener('click', closeEnrollResult);
+
+document.getElementById('modal-enroll-result')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEnrollResult(); });
+
 // -----------------------------------------------------------------------------
 // Init — restore session on page load
 // -----------------------------------------------------------------------------
 
 (async function init() {
-    const token = sessionStorage.getItem('snap_token');
-    const role  = sessionStorage.getItem('snap_role');
+    const token  = sessionStorage.getItem('snap_token');
+    const role   = sessionStorage.getItem('snap_role');
 
     if (!token || !role) return;
 
@@ -864,5 +1168,5 @@ document.getElementById('modal-post-deal')
 // =============================================================================
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
-// Created: 2026-04-02 | Updated: 2026-04-02 | Version: 0.2.0
+// Created: 2026-04-02 | Updated: 2026-04-03 | Version: 0.7.0
 // =============================================================================

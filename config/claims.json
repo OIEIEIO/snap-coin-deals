@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": "claim_1775264172612",
+    "member_id": "member_unknown",
+    "deal_id": "deal_sals_slice",
+    "business_id": "biz_sals_pizza",
+    "cad_value_redeemed": 4.0,
+    "snap_tx": "",
+    "claimed_at": "2026-04-04T00:56:12.617255128+00:00",
+    "redeemed": false
+  },
+  {
+    "id": "claim_1775266936452",
+    "member_id": "member_unknown",
+    "deal_id": "deal_bloom_bouquet",
+    "business_id": "biz_bloom_co",
+    "cad_value_redeemed": 8.0,
+    "snap_tx": "",
+    "claimed_at": "2026-04-04T01:42:16.456600485+00:00",
+    "redeemed": false
+  }
+]

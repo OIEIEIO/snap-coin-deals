@@ -5,7 +5,9 @@
      Description: SNAP Deals — mobile-first maritime dark theme
                   No hidden classes on screens — JS controls display via style.display
                   Three views: member, business, admin
-     Version: 0.2.0
+     Version: 0.7.0
+     Changes: Added wallet address step after member login
+              Added enroll member modal for admin
 ============================================================================= -->
 <html lang="en">
 <head>
@@ -17,8 +19,7 @@
 <body>
 
     <!-- =====================================================================
-         LOGIN SCREEN — visible on load (CSS default for #screen-login is flex)
-         JS hides this after successful auth
+         LOGIN SCREEN
     ====================================================================== -->
     <div id="screen-login" class="screen">
         <div id="login-wrap">
@@ -27,7 +28,9 @@
                 <span class="logo-deals">Deals</span>
             </div>
             <div id="login-tagline">Local savings. On the chain.</div>
-            <div id="login-form">
+
+            <!-- Step 1: token -->
+            <div id="login-step-token" class="login-step">
                 <input
                     id="login-token-input"
                     type="password"
@@ -37,16 +40,29 @@
                 <button id="btn-login">SIGN IN</button>
                 <div id="login-error">Invalid token — please try again</div>
             </div>
+
+            <!-- Step 2: wallet address (member only) -->
+            <div id="login-step-wallet" class="login-step" style="display:none">
+                <div id="login-wallet-hint">Enter your assigned wallet address</div>
+                <input
+                    id="login-wallet-input"
+                    type="text"
+                    placeholder="Your wallet address"
+                    autocomplete="off"
+                >
+                <button id="btn-login-wallet">CONTINUE</button>
+                <div id="login-wallet-error">Wallet not found — please check your address</div>
+            </div>
+
             <div id="login-footer">Halifax · Dartmouth · Nova Scotia</div>
         </div>
     </div>
 
     <!-- =====================================================================
-         MAIN APP — hidden on load (JS sets display:flex after auth)
+         MAIN APP
     ====================================================================== -->
     <div id="screen-app" class="screen" style="display:none">
 
-        <!-- HEADER -->
         <header id="header">
             <div id="header-left">
                 <span class="logo-snap">SNAP</span>
@@ -61,7 +77,6 @@
             </div>
         </header>
 
-        <!-- MAIN CONTENT -->
         <main id="main-content">
 
             <!-- MEMBER VIEWS -->
@@ -126,8 +141,9 @@
             <div id="view-admin-members" class="view">
                 <div class="view-header">
                     <span class="view-title">Members</span>
-                    <span id="admin-members-count" class="count-badge"></span>
+                    <button id="btn-enroll-member" class="btn-action-sm">+ ENROLL</button>
                 </div>
+                <div id="admin-members-count-bar"></div>
                 <div id="admin-members-list"></div>
             </div>
 
@@ -149,15 +165,13 @@
 
         </main>
 
-        <!-- BOTTOM NAV -->
         <nav id="bottom-nav"></nav>
 
     </div>
 
     <!-- =====================================================================
-         MODALS — display:none in CSS, JS sets display:flex to open
+         MODAL — Claim deal
     ====================================================================== -->
-
     <div id="modal-claim" class="modal-overlay">
         <div class="modal-box">
             <div class="modal-title">Claim This Deal?</div>
@@ -169,6 +183,9 @@
         </div>
     </div>
 
+    <!-- =====================================================================
+         MODAL — Post a deal
+    ====================================================================== -->
     <div id="modal-post-deal" class="modal-overlay">
         <div class="modal-box">
             <div class="modal-title">Post a Deal</div>
@@ -183,11 +200,58 @@
         </div>
     </div>
 
+    <!-- =====================================================================
+         MODAL — Enroll member (admin)
+    ====================================================================== -->
+    <div id="modal-enroll-member" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Enroll New Member</div>
+
+            <input class="modal-input" id="enroll-name"
+                type="text" placeholder="Member name">
+
+            <input class="modal-input" id="enroll-starter-snap"
+                type="number" placeholder="Starter SNAP amount (e.g. 100)" value="100">
+
+            <div class="modal-section-label">Admin wallet (funding source)</div>
+            <input class="modal-input" id="enroll-admin-wallet-id"
+                type="text" placeholder="Admin wallet ID (from wallets.json)">
+
+            <input class="modal-input" id="enroll-wallet-pin"
+                type="password" inputmode="numeric" maxlength="6"
+                placeholder="Admin wallet PIN">
+
+            <div id="enroll-error" class="modal-error"></div>
+
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-enroll-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-enroll-confirm">ENROLL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL — Enroll result (show new member wallet address)
+    ====================================================================== -->
+    <div id="modal-enroll-result" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Member Enrolled ✓</div>
+            <div id="enroll-result-name" class="enroll-result-name"></div>
+            <div class="modal-section-label">Wallet address — give this to the member</div>
+            <div class="enroll-result-address" id="enroll-result-address"></div>
+            <div class="modal-section-label">Starter SNAP sent</div>
+            <div class="enroll-result-snap" id="enroll-result-snap"></div>
+            <button class="btn-enroll-copy" id="btn-copy-enroll-address">COPY WALLET ADDRESS</button>
+            <button class="btn-modal-confirm" id="btn-enroll-result-done">DONE</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
 <!-- =============================================================================
      File: static/index.html
      Tree: snap-coin-deals/static/index.html
-     Created: 2026-04-02 | Updated: 2026-04-02 | Version: 0.2.0
+     Created: 2026-04-02 | Updated: 2026-04-03 | Version: 0.7.0
 ============================================================================= -->
