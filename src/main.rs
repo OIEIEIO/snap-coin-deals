@@ -59,7 +59,7 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     let dict_path = std::env::var("DICTIONARY_PATH")
-        .unwrap_or_else(|_| "../snap-coin-opcode/dictionary/dictionary.json".to_string());
+        .unwrap_or_else(|_| "config/local-dictionary.json".to_string());
 
     let dictionary = Dictionary::load(&dict_path).expect("failed to load dictionary");
     tracing::info!(

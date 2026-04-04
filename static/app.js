@@ -2,7 +2,7 @@
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
 // Description: SNAP Deals frontend — auth, member, business, admin views
-// Version: 0.7.0
+// Version: 0.9.0
 // Comments: Fixed hidden/active class conflict — show/hide use display directly
 //           Role-based views — member | business | admin
 //           Token stored in sessionStorage only — cleared on tab close
@@ -13,6 +13,9 @@
 //           Added: profile page — member info from lookup, metrics grid
 //           Added: wallet address step after member login
 //           Added: admin enroll member — create wallet, enroll, send SNAP
+//           Added: admin post deal — business selector, onboarding fee, wallet, PIN
+//           post deal creates deal wallet in backend, fires DEAL_POSTED opcode
+//           frontend sends onboarding_fee SNAP from admin wallet to deal wallet
 // =============================================================================
 
 'use strict';
@@ -802,22 +805,55 @@ async function verifyMember() {
 // BUSINESS — Post deal modal
 // -----------------------------------------------------------------------------
 
-function openPostDealModal()  { showFlex('modal-post-deal'); }
+async function openPostDealModal() {
+    // populate business selector
+    const sel = document.getElementById('post-deal-business-id');
+    sel.innerHTML = '<option value="">Select business…</option>';
+    try {
+        const res = await GET('/api/businesses/all');
+        (res.businesses || []).forEach(b => {
+            const opt = document.createElement('option');
+            opt.value       = b.id;
+            opt.textContent = b.name;
+            sel.appendChild(opt);
+        });
+        // if business role, pre-select their business
+        if (state.businessId) sel.value = state.businessId;
+    } catch {}
+    showFlex('modal-post-deal');
+}
 
 function closePostDealModal() {
     hide('modal-post-deal');
-    ['post-deal-title','post-deal-description','post-deal-value','post-deal-claims-max']
+    ['post-deal-title','post-deal-description','post-deal-value',
+     'post-deal-claims-max','post-deal-onboarding-fee',
+     'post-deal-admin-wallet-id','post-deal-pin']
         .forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('post-deal-error').style.display = 'none';
 }
 
 async function submitPostDeal() {
-    const title     = document.getElementById('post-deal-title').value.trim();
-    const desc      = document.getElementById('post-deal-description').value.trim();
-    const cadValue  = parseFloat(document.getElementById('post-deal-value').value);
-    const claimsMax = parseInt(document.getElementById('post-deal-claims-max').value) || 0;
+    const businessId    = document.getElementById('post-deal-business-id').value.trim();
+    const title         = document.getElementById('post-deal-title').value.trim();
+    const desc          = document.getElementById('post-deal-description').value.trim();
+    const cadValue      = parseFloat(document.getElementById('post-deal-value').value);
+    const claimsMax     = parseInt(document.getElementById('post-deal-claims-max').value) || 0;
+    const onboardingFee = parseFloat(document.getElementById('post-deal-onboarding-fee').value);
+    const adminWalletId = document.getElementById('post-deal-admin-wallet-id').value.trim();
+    const pin           = document.getElementById('post-deal-pin').value.trim();
+    const errEl         = document.getElementById('post-deal-error');
 
-    if (!title || !desc || !cadValue) {
-        alert('Please fill in all required fields');
+    errEl.style.display = 'none';
+
+    if (!businessId || !title || !desc || !cadValue || !onboardingFee || !adminWalletId || !pin) {
+        errEl.textContent   = 'All fields are required';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    if (onboardingFee <= 0) {
+        errEl.textContent   = 'Onboarding fee must be greater than zero';
+        errEl.style.display = 'block';
         return;
     }
 
@@ -826,23 +862,44 @@ async function submitPostDeal() {
     btn.disabled    = true;
 
     try {
-        await POST('/api/deals/post', {
-            id:          `deal_${state.businessId}_${Date.now()}`,
-            business_id: state.businessId,
-            wallet:      state.wallet || 'snap_placeholder_new_deal',
+        // step 1 — post deal — backend creates deal wallet and fires DEAL_POSTED opcode
+        const dealRes = await POST('/api/deals/post', {
+            id:              `deal_${businessId}_${Date.now()}`,
+            business_id:     businessId,
             title,
-            description: desc,
-            cad_value:   cadValue,
-            claims_max:  claimsMax,
+            description:     desc,
+            cad_value:       cadValue,
+            onboarding_fee:  onboardingFee,
+            claims_max:      claimsMax,
+        });
+
+        // step 2 — send onboarding fee SNAP from admin wallet to deal wallet
+        await POST('/api/wallets/send-snap', {
+            from_wallet_id: adminWalletId,
+            to_address:     dealRes.wallet,
+            amount:         onboardingFee,
+            pin,
         });
 
         closePostDealModal();
-        await loadBizDeals();
 
-    } catch { alert('Could not post deal. Please try again.'); }
-    finally {
+        // reload whichever deals view is active
+        if (state.role === 'admin') {
+            await loadAdminDeals();
+        } else {
+            await loadBizDeals();
+        }
+
+    } catch (e) {
+        errEl.textContent   = `Could not post deal: ${e.message}`;
+        errEl.style.display = 'block';
         btn.textContent = 'POST';
         btn.disabled    = false;
+    } finally {
+        if (!document.getElementById('post-deal-error').textContent) {
+            btn.textContent = 'POST';
+            btn.disabled    = false;
+        }
     }
 }
 
@@ -1066,6 +1123,102 @@ async function loadAdminDeals() {
 }
 
 // -----------------------------------------------------------------------------
+// ADMIN — Enroll business modal
+// -----------------------------------------------------------------------------
+
+function openEnrollBusinessModal() {
+    ['enroll-biz-name','enroll-biz-description','enroll-biz-onboarding-fee',
+     'enroll-biz-admin-wallet-id','enroll-biz-pin'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+    document.getElementById('enroll-biz-category').value = '';
+    document.getElementById('enroll-biz-error').style.display = 'none';
+    showFlex('modal-enroll-business');
+    setTimeout(() => document.getElementById('enroll-biz-name')?.focus(), 100);
+}
+
+function closeEnrollBusinessModal() {
+    hide('modal-enroll-business');
+}
+
+async function submitEnrollBusiness() {
+    const name          = document.getElementById('enroll-biz-name').value.trim();
+    const category      = document.getElementById('enroll-biz-category').value;
+    const description   = document.getElementById('enroll-biz-description').value.trim();
+    const onboardingFee = parseFloat(document.getElementById('enroll-biz-onboarding-fee').value) || 0;
+    const adminWalletId = document.getElementById('enroll-biz-admin-wallet-id').value.trim();
+    const pin           = document.getElementById('enroll-biz-pin').value.trim();
+    const errEl         = document.getElementById('enroll-biz-error');
+
+    errEl.style.display = 'none';
+
+    if (!name || !category || !description || !adminWalletId || !pin) {
+        errEl.textContent   = 'All fields are required';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-enroll-biz-confirm');
+    btn.textContent = 'ENROLLING…';
+    btn.disabled    = true;
+
+    try {
+        // step 1 — enroll business — backend creates wallet internally
+        const bizId  = `biz_${Date.now()}`;
+        const bizRes = await POST('/api/businesses/enroll', {
+            id:             bizId,
+            name,
+            category,
+            description,
+            onboarding_fee: onboardingFee,
+        });
+
+        // step 2 — send onboarding fee SNAP from admin wallet to business wallet
+        if (onboardingFee > 0) {
+            await POST('/api/wallets/send-snap', {
+                from_wallet_id: adminWalletId,
+                to_address:     bizRes.wallet,
+                amount:         onboardingFee,
+                pin,
+            });
+        }
+
+        closeEnrollBusinessModal();
+        showEnrollBizResult(name, bizRes.wallet, onboardingFee);
+        await loadAdminBusinesses();
+
+    } catch (e) {
+        errEl.textContent   = `Enrollment failed: ${e.message}`;
+        errEl.style.display = 'block';
+        btn.textContent = 'ENROLL';
+        btn.disabled    = false;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN — Enroll business result modal
+// -----------------------------------------------------------------------------
+
+function showEnrollBizResult(name, address, snap) {
+    document.getElementById('enroll-biz-result-name').textContent    = name;
+    document.getElementById('enroll-biz-result-address').textContent = address;
+    document.getElementById('enroll-biz-result-snap').textContent    = snap > 0 ? `${snap} SNAP` : 'None';
+    showFlex('modal-enroll-biz-result');
+}
+
+function closeEnrollBizResult() {
+    hide('modal-enroll-biz-result');
+}
+
+function copyBizAddress() {
+    const addr = document.getElementById('enroll-biz-result-address').textContent;
+    navigator.clipboard.writeText(addr).catch(() => {});
+    const btn = document.getElementById('btn-copy-biz-address');
+    btn.textContent = 'COPIED ✓';
+    setTimeout(() => { btn.textContent = 'COPY WALLET ADDRESS'; }, 2000);
+}
+
+// -----------------------------------------------------------------------------
 // Event listeners
 // -----------------------------------------------------------------------------
 
@@ -1093,6 +1246,9 @@ document.getElementById('btn-claim-confirm')
 document.getElementById('btn-post-deal')
     .addEventListener('click', openPostDealModal);
 
+document.getElementById('btn-admin-post-deal')
+    .addEventListener('click', openPostDealModal);
+
 document.getElementById('btn-post-deal-cancel')
     .addEventListener('click', closePostDealModal);
 
@@ -1113,6 +1269,27 @@ document.getElementById('modal-post-deal')
 
 document.getElementById('btn-enroll-member')
     .addEventListener('click', openEnrollMemberModal);
+
+document.getElementById('btn-enroll-business')
+    .addEventListener('click', openEnrollBusinessModal);
+
+document.getElementById('btn-enroll-biz-cancel')
+    .addEventListener('click', closeEnrollBusinessModal);
+
+document.getElementById('btn-enroll-biz-confirm')
+    .addEventListener('click', submitEnrollBusiness);
+
+document.getElementById('modal-enroll-business')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEnrollBusinessModal(); });
+
+document.getElementById('btn-copy-biz-address')
+    .addEventListener('click', copyBizAddress);
+
+document.getElementById('btn-enroll-biz-result-done')
+    .addEventListener('click', closeEnrollBizResult);
+
+document.getElementById('modal-enroll-biz-result')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEnrollBizResult(); });
 
 document.getElementById('btn-enroll-cancel')
     .addEventListener('click', closeEnrollMemberModal);
@@ -1168,5 +1345,5 @@ document.getElementById('modal-enroll-result')
 // =============================================================================
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
-// Created: 2026-04-02 | Updated: 2026-04-03 | Version: 0.7.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.9.0
 // =============================================================================

@@ -2,9 +2,12 @@
 // File: src/api/deals.rs
 // Tree: snap-coin-deals/src/api/deals.rs
 // Description: Deal posting, listing, lookup, expiry, and cancellation
-// Version: 0.2.0
-// Comments: Added wallet field to Deal and PostDealRequest
-//           Each deal has its own SNAP wallet — claims fire opcodes to it
+// Version: 0.3.0
+// Comments: post_deal creates deal wallet internally — no wallet passed from frontend
+//           DEAL_WALLET_PIN from .env encrypts all deal wallet keys
+//           ADMIN_WALLET_ID from .env is the target for DEAL_POSTED opcode
+//           onboarding_fee is the SNAP cost of creating the deal — set per deal
+//           DEAL_POSTED opcode fires from deal wallet to admin wallet on creation
 //           cad_value and snap_value are 1:1 — 1 SNAP = 1 CAD
 //           claims_max = 0 means unlimited claims
 //           expires_at is UTC timestamp string — empty string means no expiry
@@ -19,9 +22,16 @@ use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::fs;
+use snap_coin::crypto::keys::{Private, Public};
 use crate::app_state::AppState;
+use crate::wallet::store::{WalletEntry, WalletsFile};
+use crate::wallet::pin::encrypt_key;
 
-const DEALS_FILE: &str = "config/deals.json";
+const DEALS_FILE:   &str = "config/deals.json";
+const WALLETS_FILE: &str = "config/wallets.json";
+
+// DEAL_POSTED opcode amount — family 20 opcode 0001 — 0.02000010 in atomic units
+const DEAL_POSTED_AMOUNT: u64 = 2_000_010;
 
 // -----------------------------------------------------------------------------
 // Data model
@@ -31,11 +41,12 @@ const DEALS_FILE: &str = "config/deals.json";
 pub struct Deal {
     pub id:           String,
     pub business_id:  String,
-    pub wallet:       String,   // deal wallet — claims fire opcodes to this address
+    pub wallet:       String,    // deal wallet address — claims send SNAP here
     pub title:        String,
     pub description:  String,
     pub cad_value:    f64,
     pub snap_value:   f64,
+    pub onboarding_fee: f64,       // SNAP cost to create this deal — set per deal
     pub expires_at:   String,
     pub claims_max:   u32,
     pub claims_count: u32,
@@ -49,23 +60,24 @@ pub struct Deal {
 
 #[derive(Debug, Deserialize)]
 pub struct PostDealRequest {
-    pub id:          String,
-    pub business_id: String,
-    pub wallet:      String,    // deal wallet address — created before posting
-    pub title:       String,
-    pub description: String,
-    pub cad_value:   f64,
-    pub expires_at:  Option<String>,
-    pub claims_max:  Option<u32>,
+    pub id:           String,
+    pub business_id:  String,
+    pub title:        String,
+    pub description:  String,
+    pub cad_value:    f64,
+    pub onboarding_fee: f64,       // SNAP cost of creating this deal
+    pub expires_at:   Option<String>,
+    pub claims_max:   Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct PostDealResponse {
-    pub success:    bool,
-    pub id:         String,
-    pub wallet:     String,
-    pub snap_value: f64,
-    pub message:    String,
+    pub success:      bool,
+    pub id:           String,
+    pub wallet:       String,    // deal wallet address — frontend sends onboarding_fee SNAP here
+    pub snap_value:   f64,
+    pub onboarding_fee: f64,
+    pub message:      String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,49 +155,100 @@ fn total_value(deals: &[Deal]) -> f64 {
 
 // -----------------------------------------------------------------------------
 // POST /api/deals/post
-// Business posts a new deal
-// snap_value mirrors cad_value — 1:1 peg
-// wallet must be pre-created via /api/wallets/create
+// Admin or business posts a new deal
+// Creates deal wallet internally — fires DEAL_POSTED opcode to admin wallet
+// Returns deal wallet address so frontend can send onboarding_fee SNAP to it
 // -----------------------------------------------------------------------------
 
 pub async fn post_deal(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(req): Json<PostDealRequest>,
 ) -> Result<Json<PostDealResponse>, StatusCode> {
+
     let mut deals = load_deals()?;
 
-    // no duplicate deal ids
     if deals.iter().any(|d| d.id == req.id) {
         return Ok(Json(PostDealResponse {
-            success:    false,
-            id:         req.id,
-            wallet:     req.wallet,
-            snap_value: 0.0,
-            message:    "deal id already exists".to_string(),
+            success:      false,
+            id:           req.id,
+            wallet:       String::new(),
+            snap_value:   0.0,
+            onboarding_fee: 0.0,
+            message:      "deal id already exists".to_string(),
         }));
     }
 
     if req.cad_value <= 0.0 {
         return Ok(Json(PostDealResponse {
-            success:    false,
-            id:         req.id,
-            wallet:     req.wallet,
-            snap_value: 0.0,
-            message:    "cad_value must be greater than zero".to_string(),
+            success:      false,
+            id:           req.id,
+            wallet:       String::new(),
+            snap_value:   0.0,
+            onboarding_fee: 0.0,
+            message:      "cad_value must be greater than zero".to_string(),
         }));
     }
 
-    let wallet     = req.wallet.clone();
-    let snap_value = req.cad_value;
+    if req.onboarding_fee <= 0.0 {
+        return Ok(Json(PostDealResponse {
+            success:      false,
+            id:           req.id,
+            wallet:       String::new(),
+            snap_value:   0.0,
+            onboarding_fee: 0.0,
+            message:      "onboarding_fee must be greater than zero".to_string(),
+        }));
+    }
+
+    // --- read env ---
+    let deal_wallet_pin = std::env::var("DEAL_WALLET_PIN")
+        .map_err(|_| { tracing::error!("DEAL_WALLET_PIN not set"); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let admin_wallet_id = std::env::var("ADMIN_WALLET_ID")
+        .map_err(|_| { tracing::error!("ADMIN_WALLET_ID not set"); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    // --- generate deal wallet keypair ---
+    let private  = Private::new_random();
+    let public   = private.to_public();
+    let address  = public.dump_base36();
+    let priv_b36 = private.dump_base36();
+
+    let encrypted_key = encrypt_key(&priv_b36, &deal_wallet_pin);
+
+    // --- save deal wallet to wallets.json ---
+    let wallet_id = format!("deal_{}", req.id);
+
+    let mut wallets = WalletsFile::load(WALLETS_FILE)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let order = wallets.next_order();
+
+    wallets.add(wallet_id.clone(), WalletEntry {
+        label:         format!("Deal: {}", req.title),
+        address:       address.clone(),
+        encrypted_key,
+        column:        Some("right".to_string()),
+        order:         Some(order),
+        locked:        true,
+    });
+
+    wallets.save(WALLETS_FILE)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // --- save deal record ---
+    let snap_value   = req.cad_value;
+    let onboarding_fee = req.onboarding_fee;
+    let deal_id      = req.id.clone();
 
     let deal = Deal {
         id:           req.id.clone(),
         business_id:  req.business_id,
-        wallet:       req.wallet,
-        title:        req.title,
+        wallet:       address.clone(),
+        title:        req.title.clone(),
         description:  req.description,
         cad_value:    req.cad_value,
-        snap_value:   req.cad_value,   // 1:1 peg
+        snap_value:   req.cad_value,
+        onboarding_fee: req.onboarding_fee,
         expires_at:   req.expires_at.unwrap_or_default(),
         claims_max:   req.claims_max.unwrap_or(0),
         claims_count: 0,
@@ -196,14 +259,37 @@ pub async fn post_deal(
     deals.push(deal);
     save_deals(&deals)?;
 
-    tracing::info!("deal posted: {} ${:.2} CAD wallet {}", req.id, req.cad_value, &wallet[..8.min(wallet.len())]);
+    // --- get admin wallet address for DEAL_POSTED opcode target ---
+    let wallets_fresh = WalletsFile::load(WALLETS_FILE)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let admin_wallet = wallets_fresh.get(&admin_wallet_id)
+        .ok_or_else(|| { tracing::error!("admin wallet {} not found", admin_wallet_id); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    let admin_public = Public::new_from_base36(&admin_wallet.address)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // --- fire DEAL_POSTED opcode from deal wallet to admin wallet ---
+    let deal_private = Private::new_from_base36(&priv_b36)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    state.outbound
+        .submit_withdrawal(vec![(admin_public, DEAL_POSTED_AMOUNT)], deal_private)
+        .await
+        .map_err(|e| { tracing::error!("DEAL_POSTED opcode failed: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    tracing::info!(
+        "deal posted: {} onboarding_fee={} SNAP wallet={} DEAL_POSTED opcode fired",
+        deal_id, onboarding_fee, &address[..8]
+    );
 
     Ok(Json(PostDealResponse {
-        success:    true,
-        id:         req.id,
-        wallet,
+        success:      true,
+        id:           req.id,
+        wallet:       address,
         snap_value,
-        message:    "deal posted successfully".to_string(),
+        onboarding_fee,
+        message:      "deal posted — send onboarding_fee SNAP to deal wallet".to_string(),
     }))
 }
 
@@ -235,7 +321,6 @@ pub async fn list_deals(
 // -----------------------------------------------------------------------------
 // POST /api/deals/by-business
 // List active deals for a specific business
-// Used on the business dashboard and member business detail view
 // -----------------------------------------------------------------------------
 
 pub async fn list_deals_by_business(
@@ -286,7 +371,7 @@ pub async fn get_deal(
 
 // -----------------------------------------------------------------------------
 // POST /api/deals/update
-// Business updates a deal — title, description, value, expiry, claims_max
+// Business or admin updates a deal
 // snap_value always mirrors cad_value on update
 // -----------------------------------------------------------------------------
 
@@ -302,7 +387,7 @@ pub async fn update_deal(
             if let Some(description) = req.description { d.description = description; }
             if let Some(cad_value)   = req.cad_value   {
                 d.cad_value  = cad_value;
-                d.snap_value = cad_value;   // keep 1:1 peg
+                d.snap_value = cad_value;
             }
             if let Some(expires_at)  = req.expires_at  { d.expires_at  = expires_at; }
             if let Some(claims_max)  = req.claims_max  { d.claims_max  = claims_max; }
@@ -317,7 +402,6 @@ pub async fn update_deal(
 // -----------------------------------------------------------------------------
 // POST /api/deals/cancel
 // Business or admin cancels a deal — sets active to false
-// claims_count is preserved for audit purposes
 // -----------------------------------------------------------------------------
 
 pub async fn cancel_deal(
@@ -346,12 +430,10 @@ pub fn increment_claim_count(deal_id: &str) -> Result<(), StatusCode> {
 
     match deals.iter_mut().find(|d| d.id == deal_id) {
         Some(d) => {
-            // check claims_max — 0 means unlimited
             if d.claims_max > 0 && d.claims_count >= d.claims_max {
                 return Err(StatusCode::CONFLICT);
             }
             d.claims_count += 1;
-            // auto-deactivate if claims_max reached
             if d.claims_max > 0 && d.claims_count >= d.claims_max {
                 d.active = false;
                 tracing::info!("deal {} reached max claims — deactivated", deal_id);
@@ -366,5 +448,5 @@ pub fn increment_claim_count(deal_id: &str) -> Result<(), StatusCode> {
 // -----------------------------------------------------------------------------
 // File: src/api/deals.rs
 // Tree: snap-coin-deals/src/api/deals.rs
-// Created: 2026-04-02 | Updated: 2026-04-02 | Version: 0.2.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.3.0
 // -----------------------------------------------------------------------------

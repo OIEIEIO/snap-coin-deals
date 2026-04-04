@@ -2,8 +2,13 @@
 // File: src/api/businesses.rs
 // Tree: snap-coin-deals/src/api/businesses.rs
 // Description: Business enrollment, listing, lookup, and status endpoints
-// Version: 0.1.0
-// Comments: Businesses enroll with a wallet address — platform assigns them
+// Version: 0.2.0
+// Comments: enroll_business now creates business wallet internally
+//           BUSINESS_WALLET_PIN from .env encrypts all business wallet keys
+//           ADMIN_WALLET_ID from .env is the target for onboarding SNAP send
+//           onboarding_fee is the SNAP cost to onboard the business — set per business
+//           backend creates wallet, saves business record, returns address
+//           frontend sends onboarding_fee SNAP from admin wallet to business wallet
 //           category: food | retail | service | other
 //           active flag used to suspend without deleting
 //           enrolled_at is UTC timestamp string
@@ -17,9 +22,13 @@ use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::fs;
+use snap_coin::crypto::keys::{Private, Public};
 use crate::app_state::AppState;
+use crate::wallet::store::{WalletEntry, WalletsFile};
+use crate::wallet::pin::encrypt_key;
 
 const BUSINESSES_FILE: &str = "config/businesses.json";
+const WALLETS_FILE:    &str = "config/wallets.json";
 
 // -----------------------------------------------------------------------------
 // Data model
@@ -27,14 +36,15 @@ const BUSINESSES_FILE: &str = "config/businesses.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Business {
-    pub id:          String,
-    pub wallet:      String,
-    pub name:        String,
-    pub category:    String,
-    pub description: String,
-    pub role:        String,
-    pub enrolled_at: String,
-    pub active:      bool,
+    pub id:             String,
+    pub wallet:         String,
+    pub name:           String,
+    pub category:       String,
+    pub description:    String,
+    pub onboarding_fee: f64,     // SNAP paid to onboard this business
+    pub role:           String,
+    pub enrolled_at:    String,
+    pub active:         bool,
 }
 
 // -----------------------------------------------------------------------------
@@ -43,19 +53,20 @@ pub struct Business {
 
 #[derive(Debug, Deserialize)]
 pub struct EnrollBusinessRequest {
-    pub id:          String,
-    pub wallet:      String,
-    pub name:        String,
-    pub category:    String,
-    pub description: String,
+    pub id:             String,
+    pub name:           String,
+    pub category:       String,
+    pub description:    String,
+    pub onboarding_fee: f64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct EnrollBusinessResponse {
-    pub success: bool,
-    pub id:      String,
-    pub wallet:  String,
-    pub message: String,
+    pub success:        bool,
+    pub id:             String,
+    pub wallet:         String,   // business wallet address — frontend sends onboarding_fee SNAP here
+    pub onboarding_fee: f64,
+    pub message:        String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,8 +136,8 @@ fn now_utc() -> String {
 
 // -----------------------------------------------------------------------------
 // POST /api/businesses/enroll
-// Registers a new business — wallet must be provided by caller
-// Admin creates the wallet separately via /api/wallets/create
+// Admin enrolls a new business — wallet created internally
+// Returns business wallet address so frontend can send onboarding_fee SNAP to it
 // -----------------------------------------------------------------------------
 
 pub async fn enroll_business(
@@ -135,47 +146,89 @@ pub async fn enroll_business(
 ) -> Result<Json<EnrollBusinessResponse>, StatusCode> {
     let mut businesses = load_businesses()?;
 
-    // check for duplicate wallet
-    if businesses.iter().any(|b| b.wallet == req.wallet) {
-        return Ok(Json(EnrollBusinessResponse {
-            success: false,
-            id:      req.id,
-            wallet:  req.wallet,
-            message: "wallet already enrolled as a business".to_string(),
-        }));
-    }
-
     // check for duplicate name
     if businesses.iter().any(|b| b.name.to_lowercase() == req.name.to_lowercase()) {
         return Ok(Json(EnrollBusinessResponse {
-            success: false,
-            id:      req.id,
-            wallet:  req.wallet,
-            message: "business name already registered".to_string(),
+            success:        false,
+            id:             req.id,
+            wallet:         String::new(),
+            onboarding_fee: 0.0,
+            message:        "business name already registered".to_string(),
         }));
     }
 
+    if req.onboarding_fee < 0.0 {
+        return Ok(Json(EnrollBusinessResponse {
+            success:        false,
+            id:             req.id,
+            wallet:         String::new(),
+            onboarding_fee: 0.0,
+            message:        "onboarding_fee cannot be negative".to_string(),
+        }));
+    }
+
+    // --- read env ---
+    let business_wallet_pin = std::env::var("BUSINESS_WALLET_PIN")
+        .map_err(|_| { tracing::error!("BUSINESS_WALLET_PIN not set"); StatusCode::INTERNAL_SERVER_ERROR })?;
+
+    // --- generate business wallet keypair ---
+    let private  = Private::new_random();
+    let public   = private.to_public();
+    let address  = public.dump_base36();
+    let priv_b36 = private.dump_base36();
+
+    let encrypted_key = encrypt_key(&priv_b36, &business_wallet_pin);
+
+    // --- save business wallet to wallets.json ---
+    let wallet_id = format!("biz_{}", req.id);
+
+    let mut wallets = WalletsFile::load(WALLETS_FILE)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let order = wallets.next_order();
+
+    wallets.add(wallet_id.clone(), WalletEntry {
+        label:         format!("Business: {}", req.name),
+        address:       address.clone(),
+        encrypted_key,
+        column:        Some("right".to_string()),
+        order:         Some(order),
+        locked:        true,
+    });
+
+    wallets.save(WALLETS_FILE)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // --- save business record ---
+    let onboarding_fee = req.onboarding_fee;
+    let biz_id         = req.id.clone();
+
     let business = Business {
-        id:          req.id.clone(),
-        wallet:      req.wallet.clone(),
-        name:        req.name,
-        category:    req.category,
-        description: req.description,
-        role:        "business".to_string(),
-        enrolled_at: now_utc(),
-        active:      true,
+        id:             req.id.clone(),
+        wallet:         address.clone(),
+        name:           req.name.clone(),
+        category:       req.category,
+        description:    req.description,
+        onboarding_fee: req.onboarding_fee,
+        role:           "business".to_string(),
+        enrolled_at:    now_utc(),
+        active:         true,
     };
 
     businesses.push(business);
     save_businesses(&businesses)?;
 
-    tracing::info!("business enrolled: {} {}", req.id, &req.wallet[..8]);
+    tracing::info!(
+        "business enrolled: {} onboarding_fee={} SNAP wallet={}",
+        biz_id, onboarding_fee, &address[..8]
+    );
 
     Ok(Json(EnrollBusinessResponse {
-        success: true,
-        id:      req.id,
-        wallet:  req.wallet,
-        message: "business enrolled successfully".to_string(),
+        success:        true,
+        id:             req.id,
+        wallet:         address,
+        onboarding_fee,
+        message:        "business enrolled — send onboarding_fee SNAP to business wallet".to_string(),
     }))
 }
 
@@ -189,7 +242,6 @@ pub async fn list_businesses(
 ) -> Result<Json<BusinessesListResponse>, StatusCode> {
     let businesses = load_businesses()?;
 
-    // members only see active businesses
     let active: Vec<Business> = businesses
         .into_iter()
         .filter(|b| b.active)
@@ -197,10 +249,7 @@ pub async fn list_businesses(
 
     let total = active.len();
 
-    Ok(Json(BusinessesListResponse {
-        businesses: active,
-        total,
-    }))
+    Ok(Json(BusinessesListResponse { businesses: active, total }))
 }
 
 // -----------------------------------------------------------------------------
@@ -220,7 +269,6 @@ pub async fn list_businesses_all(
 // -----------------------------------------------------------------------------
 // POST /api/businesses/lookup
 // Lookup a business by wallet address
-// Used by members to see business details from a QR scan
 // -----------------------------------------------------------------------------
 
 pub async fn lookup_business(
@@ -283,7 +331,6 @@ pub async fn update_business(
 // -----------------------------------------------------------------------------
 // POST /api/businesses/suspend
 // Admin only — deactivates a business without deleting
-// Suspended businesses are hidden from member listing
 // -----------------------------------------------------------------------------
 
 pub async fn suspend_business(
@@ -306,5 +353,5 @@ pub async fn suspend_business(
 // -----------------------------------------------------------------------------
 // File: src/api/businesses.rs
 // Tree: snap-coin-deals/src/api/businesses.rs
-// Created: 2026-04-02 | Version: 0.1.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.2.0
 // -----------------------------------------------------------------------------

@@ -151,6 +151,7 @@
                 <div class="view-header">
                     <span class="view-title">Businesses</span>
                     <span id="admin-biz-count" class="count-badge"></span>
+                    <button id="btn-enroll-business" class="btn-action-sm">+ ADD BUSINESS</button>
                 </div>
                 <div id="admin-biz-list"></div>
             </div>
@@ -159,6 +160,7 @@
                 <div class="view-header">
                     <span class="view-title">All Deals</span>
                     <span id="admin-deals-count" class="count-badge"></span>
+                    <button id="btn-admin-post-deal" class="btn-action-sm">+ POST DEAL</button>
                 </div>
                 <div id="admin-deals-list"></div>
             </div>
@@ -189,10 +191,17 @@
     <div id="modal-post-deal" class="modal-overlay">
         <div class="modal-box">
             <div class="modal-title">Post a Deal</div>
+            <select class="modal-input" id="post-deal-business-id">
+                <option value="">Select business…</option>
+            </select>
             <input class="modal-input" id="post-deal-title" type="text" placeholder="Deal headline">
             <textarea class="modal-input" id="post-deal-description" placeholder="Deal description" rows="3"></textarea>
             <input class="modal-input" id="post-deal-value" type="number" placeholder="CAD value (e.g. 10)">
             <input class="modal-input" id="post-deal-claims-max" type="number" placeholder="Max claims (0 = unlimited)">
+            <input class="modal-input" id="post-deal-onboarding-fee" type="number" placeholder="Onboarding fee (SNAP)">
+            <input class="modal-input" id="post-deal-admin-wallet-id" type="text" placeholder="Admin wallet ID">
+            <input class="modal-input" id="post-deal-pin" type="password" placeholder="Wallet PIN">
+            <div id="post-deal-error" class="modal-error" style="display:none"></div>
             <div class="modal-controls">
                 <button class="btn-modal-cancel" id="btn-post-deal-cancel">CANCEL</button>
                 <button class="btn-modal-confirm" id="btn-post-deal-confirm">POST</button>
@@ -246,6 +255,62 @@
         </div>
     </div>
 
+    <!-- =====================================================================
+         MODAL — Enroll business (admin)
+    ====================================================================== -->
+    <div id="modal-enroll-business" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Enroll New Business</div>
+
+            <input class="modal-input" id="enroll-biz-name"
+                type="text" placeholder="Business name">
+
+            <select class="modal-input" id="enroll-biz-category">
+                <option value="">Select category…</option>
+                <option value="food">Food</option>
+                <option value="retail">Retail</option>
+                <option value="service">Service</option>
+                <option value="other">Other</option>
+            </select>
+
+            <textarea class="modal-input" id="enroll-biz-description"
+                placeholder="Business description" rows="3"></textarea>
+
+            <input class="modal-input" id="enroll-biz-onboarding-fee"
+                type="number" placeholder="Onboarding fee (SNAP)">
+
+            <div class="modal-section-label">Admin wallet (funding source)</div>
+            <input class="modal-input" id="enroll-biz-admin-wallet-id"
+                type="text" placeholder="Admin wallet ID">
+
+            <input class="modal-input" id="enroll-biz-pin"
+                type="password" placeholder="Admin wallet PIN">
+
+            <div id="enroll-biz-error" class="modal-error"></div>
+
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-enroll-biz-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-enroll-biz-confirm">ENROLL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL — Enroll business result
+    ====================================================================== -->
+    <div id="modal-enroll-biz-result" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Business Enrolled ✓</div>
+            <div id="enroll-biz-result-name" class="enroll-result-name"></div>
+            <div class="modal-section-label">Business wallet address</div>
+            <div class="enroll-result-address" id="enroll-biz-result-address"></div>
+            <div class="modal-section-label">Onboarding fee sent</div>
+            <div class="enroll-result-snap" id="enroll-biz-result-snap"></div>
+            <button class="btn-enroll-copy" id="btn-copy-biz-address">COPY WALLET ADDRESS</button>
+            <button class="btn-modal-confirm" id="btn-enroll-biz-result-done">DONE</button>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
@@ -253,5 +318,5 @@
 <!-- =============================================================================
      File: static/index.html
      Tree: snap-coin-deals/static/index.html
-     Created: 2026-04-02 | Updated: 2026-04-03 | Version: 0.7.0
+     Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.8.0
 ============================================================================= -->

@@ -1,0 +1,91 @@
+{
+  "version": "1.0.0",
+  "families": {
+    "20": "deal_lifecycle",
+    "21": "deal_redemption"
+  },
+  "description": "snap-coin-deals local opcode dictionary — families 20 and 21",
+  "entries": {
+
+    "DEAL_POSTED": {
+      "type": "word",
+      "family": "20",
+      "opcode": "0001",
+      "amount": "0.02000010",
+      "category": "deal_lifecycle",
+      "meaning": "Deal created and activated",
+      "display": "Deal Posted"
+    },
+
+    "DEAL_CANCELLED": {
+      "type": "word",
+      "family": "20",
+      "opcode": "0002",
+      "amount": "0.02000020",
+      "category": "deal_lifecycle",
+      "meaning": "Deal pulled before expiry",
+      "display": "Deal Cancelled"
+    },
+
+    "DEAL_EXPIRED": {
+      "type": "word",
+      "family": "20",
+      "opcode": "0003",
+      "amount": "0.02000030",
+      "category": "deal_lifecycle",
+      "meaning": "Deal window closed",
+      "display": "Deal Expired"
+    },
+
+    "DEAL_EXTENDED": {
+      "type": "word",
+      "family": "20",
+      "opcode": "0004",
+      "amount": "0.02000040",
+      "category": "deal_lifecycle",
+      "meaning": "Expiry date pushed out",
+      "display": "Deal Extended"
+    },
+
+    "DEAL_UPDATED": {
+      "type": "word",
+      "family": "20",
+      "opcode": "0005",
+      "amount": "0.02000050",
+      "category": "deal_lifecycle",
+      "meaning": "Deal details modified",
+      "display": "Deal Updated"
+    },
+
+    "DEAL_REDEEMED": {
+      "type": "word",
+      "family": "21",
+      "opcode": "0001",
+      "amount": "0.02100010",
+      "category": "deal_redemption",
+      "meaning": "Member deal confirmed at counter",
+      "display": "Deal Redeemed"
+    },
+
+    "DEAL_REJECTED": {
+      "type": "word",
+      "family": "21",
+      "opcode": "0002",
+      "amount": "0.02100020",
+      "category": "deal_redemption",
+      "meaning": "Claim rejected at counter",
+      "display": "Deal Rejected"
+    },
+
+    "DEAL_VERIFIED": {
+      "type": "word",
+      "family": "21",
+      "opcode": "0003",
+      "amount": "0.02100030",
+      "category": "deal_redemption",
+      "meaning": "QR scanned and valid",
+      "display": "Deal Verified"
+    }
+
+  }
+}

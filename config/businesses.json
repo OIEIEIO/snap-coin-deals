@@ -5,6 +5,7 @@
     "name": "Sal's Pizza",
     "category": "food",
     "description": "Halifax's favourite slice since 1987. Hand-tossed dough, fresh local toppings, fired in a stone oven on Barrington Street.",
+    "onboarding_fee": 0.0,
     "role": "business",
     "enrolled_at": "2026-04-02T12:00:00Z",
     "active": true
@@ -15,6 +16,7 @@
     "name": "Bloom & Co",
     "category": "retail",
     "description": "Fresh cut flowers and arrangements sourced from Nova Scotia growers. Weddings, gifts, and everyday blooms on Quinpool Road.",
+    "onboarding_fee": 0.0,
     "role": "business",
     "enrolled_at": "2026-04-02T12:00:00Z",
     "active": true
@@ -25,6 +27,7 @@
     "name": "ClearSpace Storage",
     "category": "service",
     "description": "Secure climate-controlled storage units in Dartmouth. Month-to-month, no long contracts, 24hr access.",
+    "onboarding_fee": 0.0,
     "role": "business",
     "enrolled_at": "2026-04-02T12:00:00Z",
     "active": true
@@ -35,6 +38,7 @@
     "name": "The Cut",
     "category": "service",
     "description": "Barbershop on Gottingen Street. Clean fades, straight razor shaves, walk-ins welcome. Slow days mean short waits.",
+    "onboarding_fee": 0.0,
     "role": "business",
     "enrolled_at": "2026-04-02T12:00:00Z",
     "active": true
@@ -45,6 +49,7 @@
     "name": "Morning Brew",
     "category": "food",
     "description": "Specialty coffee and fresh baked goods in the North End. Single origin beans, house-made pastries, good harbour views.",
+    "onboarding_fee": 0.0,
     "role": "business",
     "enrolled_at": "2026-04-02T12:00:00Z",
     "active": true
