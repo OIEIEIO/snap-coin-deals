@@ -2,7 +2,7 @@
 // File: src/api/deals.rs
 // Tree: snap-coin-deals/src/api/deals.rs
 // Description: Deal posting, listing, lookup, expiry, and cancellation
-// Version: 0.3.0
+// Version: 0.4.0
 // Comments: post_deal creates deal wallet internally — no wallet passed from frontend
 //           DEAL_WALLET_PIN from .env encrypts all deal wallet keys
 //           ADMIN_WALLET_ID from .env is the target for DEAL_POSTED opcode
@@ -13,6 +13,7 @@
 //           expires_at is UTC timestamp string — empty string means no expiry
 //           active flag — false hides deal from members
 //           posted_at is set on creation
+//           Added: list_deals_all — admin endpoint returns all deals including inactive
 // -----------------------------------------------------------------------------
 
 #![allow(dead_code)]
@@ -319,6 +320,25 @@ pub async fn list_deals(
 }
 
 // -----------------------------------------------------------------------------
+// GET /api/deals/all
+// Admin only — all deals including cancelled/inactive
+// -----------------------------------------------------------------------------
+
+pub async fn list_deals_all(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<DealsListResponse>, StatusCode> {
+    let deals     = load_deals()?;
+    let total_val = total_value(&deals);
+    let total     = deals.len();
+
+    Ok(Json(DealsListResponse {
+        deals,
+        total,
+        total_value: total_val,
+    }))
+}
+
+// -----------------------------------------------------------------------------
 // POST /api/deals/by-business
 // List active deals for a specific business
 // -----------------------------------------------------------------------------
@@ -448,5 +468,5 @@ pub fn increment_claim_count(deal_id: &str) -> Result<(), StatusCode> {
 // -----------------------------------------------------------------------------
 // File: src/api/deals.rs
 // Tree: snap-coin-deals/src/api/deals.rs
-// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.3.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.4.0
 // -----------------------------------------------------------------------------

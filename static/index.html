@@ -311,6 +311,93 @@
         </div>
     </div>
 
+    <!-- =====================================================================
+         MODAL — Edit business
+    ====================================================================== -->
+    <div id="modal-edit-business" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Edit Business</div>
+
+            <input class="modal-input" id="edit-biz-id" type="hidden">
+
+            <input class="modal-input" id="edit-biz-name"
+                type="text" placeholder="Business name">
+
+            <select class="modal-input" id="edit-biz-category">
+                <option value="">Select category…</option>
+                <option value="food">Food</option>
+                <option value="retail">Retail</option>
+                <option value="service">Service</option>
+                <option value="other">Other</option>
+            </select>
+
+            <textarea class="modal-input" id="edit-biz-description"
+                placeholder="Business description" rows="3"></textarea>
+
+            <div id="edit-biz-error" class="modal-error"></div>
+
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-edit-biz-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-edit-biz-confirm">SAVE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL — Edit deal
+    ====================================================================== -->
+    <div id="modal-edit-deal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Edit Deal</div>
+
+            <input id="edit-deal-id"          type="hidden">
+            <input id="edit-deal-business-id" type="hidden">
+
+            <input class="modal-input" id="edit-deal-title"
+                type="text" placeholder="Deal title">
+
+            <textarea class="modal-input" id="edit-deal-description"
+                placeholder="Deal description" rows="3"></textarea>
+
+            <input class="modal-input" id="edit-deal-cad-value"
+                type="number" placeholder="Value (CAD / SNAP)" step="0.01">
+
+            <input class="modal-input" id="edit-deal-expires-at"
+                type="date" placeholder="Expiry date">
+
+            <input class="modal-input" id="edit-deal-claims-max"
+                type="number" placeholder="Max claims (0 = unlimited)">
+
+            <div id="edit-deal-error" class="modal-error"></div>
+
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-edit-deal-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-edit-deal-confirm">SAVE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL — Edit member
+    ====================================================================== -->
+    <div id="modal-edit-member" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Edit Member</div>
+
+            <input id="edit-member-id" type="hidden">
+
+            <input class="modal-input" id="edit-member-name"
+                type="text" placeholder="Member name">
+
+            <div id="edit-member-error" class="modal-error"></div>
+
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-edit-member-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-edit-member-confirm">SAVE</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="app.js"></script>
 </body>
@@ -318,5 +405,5 @@
 <!-- =============================================================================
      File: static/index.html
      Tree: snap-coin-deals/static/index.html
-     Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.8.0
+     Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.1.0
 ============================================================================= -->

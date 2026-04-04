@@ -118,6 +118,7 @@ async fn main() {
         .route("/api/members/lookup",           post(api::members::lookup_member))
         .route("/api/members",                  get(api::members::list_members))
         .route("/api/members/suspend",          post(api::members::suspend_member))
+        .route("/api/members/update",           post(api::members::update_member))
         // businesses
         .route("/api/businesses/all",           get(api::businesses::list_businesses_all))
         .route("/api/businesses/enroll",        post(api::businesses::enroll_business))
@@ -126,6 +127,7 @@ async fn main() {
         .route("/api/businesses/suspend",       post(api::businesses::suspend_business))
         // deals
         .route("/api/deals/post",               post(api::deals::post_deal))
+        .route("/api/deals/all",                get(api::deals::list_deals_all))
         .route("/api/deals/by-business",        post(api::deals::list_deals_by_business))
         .route("/api/deals/get",                post(api::deals::get_deal))
         .route("/api/deals/update",             post(api::deals::update_deal))

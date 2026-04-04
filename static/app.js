@@ -2,7 +2,7 @@
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
 // Description: SNAP Deals frontend — auth, member, business, admin views
-// Version: 0.9.0
+// Version: 1.5.0
 // Comments: Fixed hidden/active class conflict — show/hide use display directly
 //           Role-based views — member | business | admin
 //           Token stored in sessionStorage only — cleared on tab close
@@ -16,6 +16,8 @@
 //           Added: admin post deal — business selector, onboarding fee, wallet, PIN
 //           post deal creates deal wallet in backend, fires DEAL_POSTED opcode
 //           frontend sends onboarding_fee SNAP from admin wallet to deal wallet
+//           Added: admin business cards — expandable, suspend, edit modal
+//           Added: admin deal cards — expandable, cancel, edit modal, shows all deals
 // =============================================================================
 
 'use strict';
@@ -282,6 +284,11 @@ function formatDate(iso) {
 function truncate(str, len = 12) {
     if (!str) return '';
     return str.length > len ? str.slice(0, len) + '…' : str;
+}
+
+function escAttr(str) {
+    if (!str) return '';
+    return str.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
 function showEmpty(containerId, icon, message) {
@@ -907,6 +914,9 @@ async function submitPostDeal() {
 // ADMIN — Members
 // -----------------------------------------------------------------------------
 
+// store members by id for safe onclick access
+const _memberStore = {};
+
 async function loadAdminMembers() {
     showLoading('admin-members-list');
 
@@ -922,22 +932,119 @@ async function loadAdminMembers() {
             return;
         }
 
-        document.getElementById('admin-members-list').innerHTML = members.map(m => `
-            <div class="admin-row">
-                <div class="status-dot ${m.active ? 'active' : 'inactive'}"></div>
-                <div class="admin-row-info">
-                    <div class="admin-row-name">${m.name}</div>
-                    <div class="admin-row-meta">
-                        ${truncate(m.wallet, 24)} · Enrolled ${formatDate(m.enrolled_at)}
+        members.forEach(m => { _memberStore[m.id] = m; });
+
+        document.getElementById('admin-members-list').innerHTML = members.map(m => {
+            const statusLabel = m.active ? 'Active' : 'Suspended';
+            const suspendBtn  = m.active
+                ? `<button class="btn-claim" style="background:var(--danger,#c0392b);margin-right:8px"
+                       onclick="suspendMember('${m.id}')">SUSPEND</button>`
+                : `<span class="claimed-badge">SUSPENDED</span>`;
+
+            return `
+            <div class="deal-card" id="member-card-${m.id}">
+                <div class="deal-card-header" onclick="toggleMemberCard('${m.id}')" style="cursor:pointer">
+                    <div class="biz-avatar other" style="width:36px;height:36px;font-size:12px">
+                        ${avatarInitials(m.name)}
+                    </div>
+                    <div class="deal-card-header-info">
+                        <div class="biz-name-full">${m.name}</div>
+                        <div class="biz-category">${truncate(m.wallet, 16)} · Enrolled ${formatDate(m.enrolled_at)}</div>
+                    </div>
+                    <div class="deal-value-pill" id="member-bal-${m.id}">…</div>
+                    <div class="status-dot ${m.active ? 'active' : 'inactive'}" style="margin-right:8px"></div>
+                    <span class="deal-expand-icon">▾</span>
+                </div>
+                <div class="deal-card-body" id="member-body-${m.id}">
+                    <div class="deal-meta" style="margin-top:4px">
+                        <span class="deal-meta-item deal-meta-prominent">🎁 Starter: ${m.starter_snap} SNAP</span>
+                        <span class="deal-meta-item deal-meta-prominent">📅 ${formatDate(m.enrolled_at)}</span>
+                        <span class="deal-meta-item deal-meta-prominent">⬤ ${statusLabel}</span>
+                    </div>
+                    <div class="deal-meta" style="margin-top:6px">
+                        <span class="deal-meta-item" style="font-family:var(--font-mono);font-size:10px;word-break:break-all">${m.wallet}</span>
+                    </div>
+                    <div class="deal-card-footer" style="margin-top:12px">
+                        ${suspendBtn}
+                        <button class="btn-claim" onclick="openEditMemberModal('${m.id}')">EDIT</button>
                     </div>
                 </div>
-                <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent)">
-                    ${m.starter_snap} SNAP
-                </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
+
+        // fetch balances in parallel
+        members.forEach(async m => {
+            try {
+                const bal = await GET(`/api/chain/balance/${m.wallet}`);
+                const el  = document.getElementById(`member-bal-${m.id}`);
+                if (el) el.textContent = `${parseFloat(bal.display).toString()} SNAP`;
+            } catch { /* leave as … */ }
+        });
 
     } catch { showEmpty('admin-members-list', '⚠️', 'Could not load members'); }
+}
+
+function toggleMemberCard(id) {
+    const body = document.getElementById(`member-body-${id}`);
+    const card = document.getElementById(`member-card-${id}`);
+    const icon = card?.querySelector('.deal-expand-icon');
+    if (!body) return;
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    if (icon) icon.textContent = isOpen ? '▾' : '▴';
+}
+
+async function suspendMember(id) {
+    if (!confirm('Suspend this member? They will lose access.')) return;
+    try {
+        await POST('/api/members/suspend', { id });
+        await loadAdminMembers();
+    } catch (e) { alert(`Suspend failed: ${e.message}`); }
+}
+
+function openEditMemberModal(id) {
+    const m = _memberStore[id];
+    if (!m) return;
+    document.getElementById('edit-member-id').value   = id;
+    document.getElementById('edit-member-name').value = m.name;
+    document.getElementById('edit-member-error').style.display = 'none';
+    document.getElementById('btn-edit-member-confirm').textContent = 'SAVE';
+    document.getElementById('btn-edit-member-confirm').disabled    = false;
+    showFlex('modal-edit-member');
+    setTimeout(() => document.getElementById('edit-member-name')?.focus(), 100);
+}
+
+function closeEditMemberModal() {
+    hide('modal-edit-member');
+}
+
+async function submitEditMember() {
+    const id   = document.getElementById('edit-member-id').value;
+    const name = document.getElementById('edit-member-name').value.trim();
+    const errEl = document.getElementById('edit-member-error');
+
+    errEl.style.display = 'none';
+
+    if (!name) {
+        errEl.textContent   = 'Name is required';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-edit-member-confirm');
+    btn.textContent = 'SAVING…';
+    btn.disabled    = true;
+
+    try {
+        await POST('/api/members/update', { id, name });
+        closeEditMemberModal();
+        await loadAdminMembers();
+    } catch (e) {
+        errEl.textContent   = `Update failed: ${e.message}`;
+        errEl.style.display = 'block';
+        btn.textContent = 'SAVE';
+        btn.disabled    = false;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1042,6 +1149,12 @@ function copyEnrollAddress() {
 // ADMIN — Businesses
 // -----------------------------------------------------------------------------
 
+// store businesses by id so onclick handlers can look up safely — avoids apostrophe issues
+const _bizStore  = {};
+
+// store deals by id for safe onclick access
+const _dealStore = {};
+
 async function loadAdminBusinesses() {
     showLoading('admin-biz-list');
 
@@ -1056,23 +1169,126 @@ async function loadAdminBusinesses() {
             return;
         }
 
-        document.getElementById('admin-biz-list').innerHTML = businesses.map(b => `
-            <div class="admin-row">
-                <div class="biz-avatar ${(b.category||'other').toLowerCase()}"
-                     style="width:36px;height:36px;font-size:12px">
-                    ${avatarInitials(b.name)}
+        // cache all businesses for safe access from onclick
+        businesses.forEach(b => { _bizStore[b.id] = b; });
+
+        document.getElementById('admin-biz-list').innerHTML = businesses.map(b => {
+            const category    = (b.category || 'other').toLowerCase();
+            const statusLabel = b.active ? 'Active' : 'Suspended';
+            const suspendBtn  = b.active
+                ? `<button class="btn-claim" style="background:var(--danger,#c0392b);margin-right:8px"
+                       onclick="suspendBusiness('${b.id}')">SUSPEND</button>`
+                : `<span class="claimed-badge">SUSPENDED</span>`;
+
+            return `
+            <div class="deal-card" id="biz-card-${b.id}">
+                <div class="deal-card-header" onclick="toggleBizCard('${b.id}')" style="cursor:pointer">
+                    <div class="biz-avatar ${category}" style="width:36px;height:36px;font-size:12px">
+                        ${avatarInitials(b.name)}
+                    </div>
+                    <div class="deal-card-header-info">
+                        <div class="biz-name-full">${b.name}</div>
+                        <div class="biz-category">${category} · ${truncate(b.wallet, 16)} · ${formatDate(b.enrolled_at)}</div>
+                    </div>
+                    <div class="deal-value-pill" id="biz-bal-${b.id}">…</div>
+                    <div class="status-dot ${b.active ? 'active' : 'inactive'}" style="margin-right:8px"></div>
+                    <span class="deal-expand-icon">▾</span>
                 </div>
-                <div class="admin-row-info">
-                    <div class="admin-row-name">${b.name}</div>
-                    <div class="admin-row-meta">
-                        ${b.category} · ${truncate(b.wallet, 16)} · ${formatDate(b.enrolled_at)}
+                <div class="deal-card-body" id="biz-body-${b.id}">
+                    <div class="deal-description">${b.description}</div>
+                    <div class="deal-meta" style="margin-top:10px">
+                        <span class="deal-meta-item deal-meta-prominent">💰 Fee: ${b.onboarding_fee > 0 ? b.onboarding_fee + ' SNAP' : 'None'}</span>
+                        <span class="deal-meta-item deal-meta-prominent">📅 ${formatDate(b.enrolled_at)}</span>
+                        <span class="deal-meta-item deal-meta-prominent">⬤ ${statusLabel}</span>
+                    </div>
+                    <div class="deal-meta" style="margin-top:6px">
+                        <span class="deal-meta-item" style="font-family:var(--font-mono);font-size:10px;word-break:break-all">${b.wallet}</span>
+                    </div>
+                    <div class="deal-card-footer" style="margin-top:12px">
+                        ${suspendBtn}
+                        <button class="btn-claim" onclick="openEditBizModal('${b.id}')">EDIT</button>
                     </div>
                 </div>
-                <div class="status-dot ${b.active ? 'active' : 'inactive'}"></div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
+
+        // fetch balances in parallel and update pills
+        businesses.forEach(async b => {
+            try {
+                const bal = await GET(`/api/chain/balance/${b.wallet}`);
+                const el  = document.getElementById(`biz-bal-${b.id}`);
+                if (el) el.textContent = `${parseFloat(bal.display).toString()} SNAP`;
+            } catch { /* leave as … */ }
+        });
 
     } catch { showEmpty('admin-biz-list', '⚠️', 'Could not load businesses'); }
+}
+
+function toggleBizCard(id) {
+    const body = document.getElementById(`biz-body-${id}`);
+    const card = document.getElementById(`biz-card-${id}`);
+    const icon = card?.querySelector('.deal-expand-icon');
+    if (!body) return;
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    if (icon) icon.textContent = isOpen ? '▾' : '▴';
+}
+
+async function suspendBusiness(id) {
+    if (!confirm('Suspend this business? It will be hidden from members.')) return;
+    try {
+        await POST('/api/businesses/suspend', { id });
+        await loadAdminBusinesses();
+    } catch (e) { alert(`Suspend failed: ${e.message}`); }
+}
+
+function openEditBizModal(id) {
+    const b = _bizStore[id];
+    if (!b) return;
+    document.getElementById('edit-biz-id').value          = id;
+    document.getElementById('edit-biz-name').value        = b.name;
+    document.getElementById('edit-biz-category').value    = b.category;
+    document.getElementById('edit-biz-description').value = b.description;
+    document.getElementById('edit-biz-error').style.display = 'none';
+    document.getElementById('btn-edit-biz-confirm').textContent = 'SAVE';
+    document.getElementById('btn-edit-biz-confirm').disabled    = false;
+    showFlex('modal-edit-business');
+    setTimeout(() => document.getElementById('edit-biz-name')?.focus(), 100);
+}
+
+function closeEditBizModal() {
+    hide('modal-edit-business');
+}
+
+async function submitEditBusiness() {
+    const id          = document.getElementById('edit-biz-id').value;
+    const name        = document.getElementById('edit-biz-name').value.trim();
+    const category    = document.getElementById('edit-biz-category').value;
+    const description = document.getElementById('edit-biz-description').value.trim();
+    const errEl       = document.getElementById('edit-biz-error');
+
+    errEl.style.display = 'none';
+
+    if (!name || !category || !description) {
+        errEl.textContent   = 'All fields are required';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-edit-biz-confirm');
+    btn.textContent = 'SAVING…';
+    btn.disabled    = true;
+
+    try {
+        await POST('/api/businesses/update', { id, name, category, description });
+        closeEditBizModal();
+        await loadAdminBusinesses();
+    } catch (e) {
+        errEl.textContent   = `Update failed: ${e.message}`;
+        errEl.style.display = 'block';
+        btn.textContent = 'SAVE';
+        btn.disabled    = false;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1084,14 +1300,16 @@ async function loadAdminDeals() {
 
     try {
         const [dealsRes, bizRes] = await Promise.all([
-            GET('/api/deals'),
+            GET('/api/deals/all'),
             GET('/api/businesses/all'),
         ]);
 
         const deals  = dealsRes.deals || [];
         const bizMap = Object.fromEntries((bizRes.businesses || []).map(b => [b.id, b]));
 
-        document.getElementById('admin-deals-count').textContent = `${dealsRes.total || 0} active`;
+        deals.forEach(d => { _dealStore[d.id] = d; });
+
+        document.getElementById('admin-deals-count').textContent = `${dealsRes.total || 0} total`;
 
         if (deals.length === 0) {
             showEmpty('admin-deals-list', '🏷️', 'No deals posted yet');
@@ -1099,27 +1317,142 @@ async function loadAdminDeals() {
         }
 
         document.getElementById('admin-deals-list').innerHTML = deals.map(deal => {
-            const biz = bizMap[deal.business_id] || {};
+            const biz       = bizMap[deal.business_id] || {};
+            const category  = (biz.category || 'other').toLowerCase();
+            const left      = deal.claims_max > 0
+                ? `${deal.claims_max - deal.claims_count} / ${deal.claims_max} left`
+                : 'Unlimited';
+            const statusLabel = deal.active ? 'Active' : 'Cancelled';
+            const cancelBtn   = deal.active
+                ? `<button class="btn-claim" style="background:var(--danger,#c0392b);margin-right:8px"
+                       onclick="cancelDeal('${deal.id}','${deal.business_id}')">CANCEL</button>`
+                : `<span class="claimed-badge">CANCELLED</span>`;
+
             return `
-                <div class="admin-row">
-                    <div class="biz-avatar ${(biz.category||'other').toLowerCase()}"
-                         style="width:36px;height:36px;font-size:12px">
+            <div class="deal-card" id="admin-deal-card-${deal.id}">
+                <div class="deal-card-header" onclick="toggleAdminDealCard('${deal.id}')" style="cursor:pointer">
+                    <div class="biz-avatar ${category}" style="width:36px;height:36px;font-size:12px">
                         ${avatarInitials(biz.name || 'SD')}
                     </div>
-                    <div class="admin-row-info">
-                        <div class="admin-row-name">${deal.title}</div>
-                        <div class="admin-row-meta">
-                            ${biz.name || deal.business_id} ·
-                            ${formatCAD(deal.cad_value)} ·
-                            ${deal.claims_count} claimed
-                        </div>
+                    <div class="deal-card-header-info">
+                        <div class="biz-name-full">${deal.title}</div>
+                        <div class="biz-category">${biz.name || deal.business_id} · ${formatCAD(deal.cad_value)} · ${deal.claims_count} claimed</div>
                     </div>
-                    <div class="status-dot ${deal.active ? 'active' : 'inactive'}"></div>
+                    <div class="deal-value-pill" id="deal-bal-${deal.id}">…</div>
+                    <div class="status-dot ${deal.active ? 'active' : 'inactive'}" style="margin-right:8px"></div>
+                    <span class="deal-expand-icon">▾</span>
                 </div>
-            `;
+                <div class="deal-card-body" id="admin-deal-body-${deal.id}">
+                    <div class="deal-description">${deal.description}</div>
+                    <div class="deal-meta" style="margin-top:10px">
+                        <span class="deal-meta-item deal-meta-prominent">💰 ${formatCAD(deal.cad_value)} / ${deal.snap_value} SNAP</span>
+                        <span class="deal-meta-item deal-meta-prominent">🏷 ${left}</span>
+                        <span class="deal-meta-item deal-meta-prominent">📅 Exp ${formatDate(deal.expires_at)}</span>
+                        <span class="deal-meta-item deal-meta-prominent">⬤ ${statusLabel}</span>
+                    </div>
+                    <div class="deal-meta" style="margin-top:6px">
+                        <span class="deal-meta-item" style="font-family:var(--font-mono);font-size:10px;word-break:break-all">${deal.wallet}</span>
+                    </div>
+                    <div class="deal-card-footer" style="margin-top:12px">
+                        ${cancelBtn}
+                        ${deal.active ? `<button class="btn-claim"
+                            onclick="openEditDealModal('${deal.id}')">EDIT</button>` : ''}
+                    </div>
+                </div>
+            </div>`;
         }).join('');
 
+        // fetch deal wallet balances in parallel
+        deals.forEach(async deal => {
+            try {
+                const bal = await GET(`/api/chain/balance/${deal.wallet}`);
+                const el  = document.getElementById(`deal-bal-${deal.id}`);
+                if (el) el.textContent = `${parseFloat(bal.display).toString()} SNAP`;
+            } catch { /* leave as … */ }
+        });
+
     } catch { showEmpty('admin-deals-list', '⚠️', 'Could not load deals'); }
+}
+
+function toggleAdminDealCard(id) {
+    const body = document.getElementById(`admin-deal-body-${id}`);
+    const card = document.getElementById(`admin-deal-card-${id}`);
+    const icon = card?.querySelector('.deal-expand-icon');
+    if (!body) return;
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    if (icon) icon.textContent = isOpen ? '▾' : '▴';
+}
+
+async function cancelDeal(id, businessId) {
+    if (!confirm('Cancel this deal? It will be hidden from members.')) return;
+    try {
+        await POST('/api/deals/cancel', { id, business_id: businessId });
+        await loadAdminDeals();
+    } catch (e) { alert(`Cancel failed: ${e.message}`); }
+}
+
+function openEditDealModal(id) {
+    const d = _dealStore[id];
+    if (!d) return;
+    document.getElementById('edit-deal-id').value          = id;
+    document.getElementById('edit-deal-business-id').value = d.business_id;
+    document.getElementById('edit-deal-title').value       = d.title;
+    document.getElementById('edit-deal-description').value = d.description;
+    document.getElementById('edit-deal-cad-value').value   = d.cad_value;
+    document.getElementById('edit-deal-expires-at').value  = d.expires_at ? d.expires_at.slice(0,10) : '';
+    document.getElementById('edit-deal-claims-max').value  = d.claims_max;
+    document.getElementById('edit-deal-error').style.display = 'none';
+    document.getElementById('btn-edit-deal-confirm').textContent = 'SAVE';
+    document.getElementById('btn-edit-deal-confirm').disabled    = false;
+    showFlex('modal-edit-deal');
+    setTimeout(() => document.getElementById('edit-deal-title')?.focus(), 100);
+}
+
+function closeEditDealModal() {
+    hide('modal-edit-deal');
+}
+
+async function submitEditDeal() {
+    const id          = document.getElementById('edit-deal-id').value;
+    const businessId  = document.getElementById('edit-deal-business-id').value;
+    const title       = document.getElementById('edit-deal-title').value.trim();
+    const description = document.getElementById('edit-deal-description').value.trim();
+    const cadValue    = parseFloat(document.getElementById('edit-deal-cad-value').value);
+    const expiresAt   = document.getElementById('edit-deal-expires-at').value;
+    const claimsMax   = parseInt(document.getElementById('edit-deal-claims-max').value) || 0;
+    const errEl       = document.getElementById('edit-deal-error');
+
+    errEl.style.display = 'none';
+
+    if (!title || !description || isNaN(cadValue) || cadValue <= 0) {
+        errEl.textContent   = 'Title, description and a valid value are required';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-edit-deal-confirm');
+    btn.textContent = 'SAVING…';
+    btn.disabled    = true;
+
+    try {
+        await POST('/api/deals/update', {
+            id,
+            business_id: businessId,
+            title,
+            description,
+            cad_value:  cadValue,
+            expires_at: expiresAt ? `${expiresAt}T23:59:59Z` : '',
+            claims_max: claimsMax,
+        });
+        closeEditDealModal();
+        await loadAdminDeals();
+    } catch (e) {
+        errEl.textContent   = `Update failed: ${e.message}`;
+        errEl.style.display = 'block';
+        btn.textContent = 'SAVE';
+        btn.disabled    = false;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1291,6 +1624,33 @@ document.getElementById('btn-enroll-biz-result-done')
 document.getElementById('modal-enroll-biz-result')
     .addEventListener('click', e => { if (e.target === e.currentTarget) closeEnrollBizResult(); });
 
+document.getElementById('btn-edit-biz-cancel')
+    .addEventListener('click', closeEditBizModal);
+
+document.getElementById('btn-edit-biz-confirm')
+    .addEventListener('click', submitEditBusiness);
+
+document.getElementById('modal-edit-business')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEditBizModal(); });
+
+document.getElementById('btn-edit-deal-cancel')
+    .addEventListener('click', closeEditDealModal);
+
+document.getElementById('btn-edit-deal-confirm')
+    .addEventListener('click', submitEditDeal);
+
+document.getElementById('modal-edit-deal')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEditDealModal(); });
+
+document.getElementById('btn-edit-member-cancel')
+    .addEventListener('click', closeEditMemberModal);
+
+document.getElementById('btn-edit-member-confirm')
+    .addEventListener('click', submitEditMember);
+
+document.getElementById('modal-edit-member')
+    .addEventListener('click', e => { if (e.target === e.currentTarget) closeEditMemberModal(); });
+
 document.getElementById('btn-enroll-cancel')
     .addEventListener('click', closeEnrollMemberModal);
 
@@ -1345,5 +1705,5 @@ document.getElementById('modal-enroll-result')
 // =============================================================================
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
-// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.9.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.5.0
 // =============================================================================

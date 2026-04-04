@@ -2,11 +2,12 @@
 // File: src/api/members.rs
 // Tree: snap-coin-deals/src/api/members.rs
 // Description: Member registration, lookup, listing, and status endpoints
-// Version: 0.1.0
+// Version: 0.2.0
 // Comments: Members are created with a generated wallet and 100 SNAP starter
 //           Role is always "member" — admin role handled in auth.rs
 //           enrolled_at is UTC timestamp string
 //           active flag used to suspend without deleting
+//           Added: update_member — admin can update member name
 // -----------------------------------------------------------------------------
 
 #![allow(dead_code)]
@@ -80,6 +81,12 @@ pub struct MembersListResponse {
 #[derive(Debug, Deserialize)]
 pub struct SuspendMemberRequest {
     pub id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateMemberRequest {
+    pub id:   String,
+    pub name: Option<String>,
 }
 
 // -----------------------------------------------------------------------------
@@ -227,7 +234,29 @@ pub async fn suspend_member(
 }
 
 // -----------------------------------------------------------------------------
+// POST /api/members/update
+// Admin only — update member name
+// -----------------------------------------------------------------------------
+
+pub async fn update_member(
+    State(_state): State<Arc<AppState>>,
+    Json(req): Json<UpdateMemberRequest>,
+) -> Result<StatusCode, StatusCode> {
+    let mut members = load_members()?;
+
+    match members.iter_mut().find(|m| m.id == req.id) {
+        Some(m) => {
+            if let Some(name) = req.name { m.name = name; }
+            save_members(&members)?;
+            tracing::info!("member updated: {}", req.id);
+            Ok(StatusCode::OK)
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
+// -----------------------------------------------------------------------------
 // File: src/api/members.rs
 // Tree: snap-coin-deals/src/api/members.rs
-// Created: 2026-04-02 | Version: 0.1.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.2.0
 // -----------------------------------------------------------------------------
