@@ -1,1 +1,52 @@
-[]
+[
+  {
+    "id": "biz_sals_pizza",
+    "wallet": "snap_placeholder_sals_pizza",
+    "name": "Sal's Pizza",
+    "category": "food",
+    "description": "Halifax's favourite slice since 1987. Hand-tossed dough, fresh local toppings, fired in a stone oven on Barrington Street.",
+    "role": "business",
+    "enrolled_at": "2026-04-02T12:00:00Z",
+    "active": true
+  },
+  {
+    "id": "biz_bloom_co",
+    "wallet": "snap_placeholder_bloom_co",
+    "name": "Bloom & Co",
+    "category": "retail",
+    "description": "Fresh cut flowers and arrangements sourced from Nova Scotia growers. Weddings, gifts, and everyday blooms on Quinpool Road.",
+    "role": "business",
+    "enrolled_at": "2026-04-02T12:00:00Z",
+    "active": true
+  },
+  {
+    "id": "biz_clearspace",
+    "wallet": "snap_placeholder_clearspace",
+    "name": "ClearSpace Storage",
+    "category": "service",
+    "description": "Secure climate-controlled storage units in Dartmouth. Month-to-month, no long contracts, 24hr access.",
+    "role": "business",
+    "enrolled_at": "2026-04-02T12:00:00Z",
+    "active": true
+  },
+  {
+    "id": "biz_the_cut",
+    "wallet": "snap_placeholder_the_cut",
+    "name": "The Cut",
+    "category": "service",
+    "description": "Barbershop on Gottingen Street. Clean fades, straight razor shaves, walk-ins welcome. Slow days mean short waits.",
+    "role": "business",
+    "enrolled_at": "2026-04-02T12:00:00Z",
+    "active": true
+  },
+  {
+    "id": "biz_morning_brew",
+    "wallet": "snap_placeholder_morning_brew",
+    "name": "Morning Brew",
+    "category": "food",
+    "description": "Specialty coffee and fresh baked goods in the North End. Single origin beans, house-made pastries, good harbour views.",
+    "role": "business",
+    "enrolled_at": "2026-04-02T12:00:00Z",
+    "active": true
+  }
+]

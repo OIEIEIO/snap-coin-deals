@@ -2,8 +2,9 @@
 // File: src/api/deals.rs
 // Tree: snap-coin-deals/src/api/deals.rs
 // Description: Deal posting, listing, lookup, expiry, and cancellation
-// Version: 0.1.0
-// Comments: Deals belong to a business via business_id
+// Version: 0.2.0
+// Comments: Added wallet field to Deal and PostDealRequest
+//           Each deal has its own SNAP wallet — claims fire opcodes to it
 //           cad_value and snap_value are 1:1 — 1 SNAP = 1 CAD
 //           claims_max = 0 means unlimited claims
 //           expires_at is UTC timestamp string — empty string means no expiry
@@ -30,6 +31,7 @@ const DEALS_FILE: &str = "config/deals.json";
 pub struct Deal {
     pub id:           String,
     pub business_id:  String,
+    pub wallet:       String,   // deal wallet — claims fire opcodes to this address
     pub title:        String,
     pub description:  String,
     pub cad_value:    f64,
@@ -49,6 +51,7 @@ pub struct Deal {
 pub struct PostDealRequest {
     pub id:          String,
     pub business_id: String,
+    pub wallet:      String,    // deal wallet address — created before posting
     pub title:       String,
     pub description: String,
     pub cad_value:   f64,
@@ -60,6 +63,7 @@ pub struct PostDealRequest {
 pub struct PostDealResponse {
     pub success:    bool,
     pub id:         String,
+    pub wallet:     String,
     pub snap_value: f64,
     pub message:    String,
 }
@@ -141,6 +145,7 @@ fn total_value(deals: &[Deal]) -> f64 {
 // POST /api/deals/post
 // Business posts a new deal
 // snap_value mirrors cad_value — 1:1 peg
+// wallet must be pre-created via /api/wallets/create
 // -----------------------------------------------------------------------------
 
 pub async fn post_deal(
@@ -154,6 +159,7 @@ pub async fn post_deal(
         return Ok(Json(PostDealResponse {
             success:    false,
             id:         req.id,
+            wallet:     req.wallet,
             snap_value: 0.0,
             message:    "deal id already exists".to_string(),
         }));
@@ -163,14 +169,19 @@ pub async fn post_deal(
         return Ok(Json(PostDealResponse {
             success:    false,
             id:         req.id,
+            wallet:     req.wallet,
             snap_value: 0.0,
             message:    "cad_value must be greater than zero".to_string(),
         }));
     }
 
+    let wallet     = req.wallet.clone();
+    let snap_value = req.cad_value;
+
     let deal = Deal {
         id:           req.id.clone(),
         business_id:  req.business_id,
+        wallet:       req.wallet,
         title:        req.title,
         description:  req.description,
         cad_value:    req.cad_value,
@@ -182,16 +193,15 @@ pub async fn post_deal(
         active:       true,
     };
 
-    let snap_value = deal.snap_value;
-
     deals.push(deal);
     save_deals(&deals)?;
 
-    tracing::info!("deal posted: {} ${:.2} CAD", req.id, req.cad_value);
+    tracing::info!("deal posted: {} ${:.2} CAD wallet {}", req.id, req.cad_value, &wallet[..8.min(wallet.len())]);
 
     Ok(Json(PostDealResponse {
         success:    true,
         id:         req.id,
+        wallet,
         snap_value,
         message:    "deal posted successfully".to_string(),
     }))
@@ -356,5 +366,5 @@ pub fn increment_claim_count(deal_id: &str) -> Result<(), StatusCode> {
 // -----------------------------------------------------------------------------
 // File: src/api/deals.rs
 // Tree: snap-coin-deals/src/api/deals.rs
-// Created: 2026-04-02 | Version: 0.1.0
+// Created: 2026-04-02 | Updated: 2026-04-02 | Version: 0.2.0
 // -----------------------------------------------------------------------------

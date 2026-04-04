@@ -1,104 +1,184 @@
 <!DOCTYPE html>
 <!-- =============================================================================
      File: static/index.html
-     Project: snap-coin-msg
-     Description: Multi-wallet panel layout - left/right columns + chain events
-     Version: 0.13.0
+     Tree: snap-coin-deals/static/index.html
+     Description: SNAP Deals — mobile-first maritime dark theme
+                  No hidden classes on screens — JS controls display via style.display
+                  Three views: member, business, admin
+     Version: 0.2.0
 ============================================================================= -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SNAP Coin MSG</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SNAP Deals</title>
     <link rel="stylesheet" href="app.css">
 </head>
 <body>
-    <div id="app">
+
+    <!-- =====================================================================
+         LOGIN SCREEN — visible on load (CSS default for #screen-login is flex)
+         JS hides this after successful auth
+    ====================================================================== -->
+    <div id="screen-login" class="screen">
+        <div id="login-wrap">
+            <div id="login-logo">
+                <span class="logo-snap">SNAP</span>
+                <span class="logo-deals">Deals</span>
+            </div>
+            <div id="login-tagline">Local savings. On the chain.</div>
+            <div id="login-form">
+                <input
+                    id="login-token-input"
+                    type="password"
+                    placeholder="Enter your access token"
+                    autocomplete="off"
+                >
+                <button id="btn-login">SIGN IN</button>
+                <div id="login-error">Invalid token — please try again</div>
+            </div>
+            <div id="login-footer">Halifax · Dartmouth · Nova Scotia</div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MAIN APP — hidden on load (JS sets display:flex after auth)
+    ====================================================================== -->
+    <div id="screen-app" class="screen" style="display:none">
 
         <!-- HEADER -->
         <header id="header">
             <div id="header-left">
-                <span class="logo">SNAP</span>
-                <span class="logo-sub">MSG</span>
+                <span class="logo-snap">SNAP</span>
+                <span class="logo-deals">Deals</span>
             </div>
             <div id="header-center">
-                <div id="status-app">
-                    <span id="app-status-dot" class="status-dot disconnected"></span>
-                    <span id="app-status-label">app: disconnected</span>
-                </div>
-                <div class="status-divider">|</div>
-                <div id="status-node">
-                    <span id="node-status-dot" class="status-dot no-node"></span>
-                    <span id="node-status-label">node: unknown</span>
-                </div>
+                <span id="header-location">Halifax · NS</span>
             </div>
             <div id="header-right">
-                <button id="btn-decode-toggle" class="btn-toggle active">DECODE</button>
+                <span id="header-role-badge"></span>
+                <button id="btn-logout" title="Sign out">⏻</button>
             </div>
         </header>
 
-        <!-- THREE COLUMN LAYOUT -->
-        <div id="main">
+        <!-- MAIN CONTENT -->
+        <main id="main-content">
 
-            <!-- LEFT COLUMN -->
-            <div class="wallet-column" id="col-left">
-                <div class="col-wallets" id="wallets-left"></div>
+            <!-- MEMBER VIEWS -->
+            <div id="view-deals" class="view">
+                <div class="view-header">
+                    <span class="view-title">Local Deals</span>
+                    <span id="deals-savings-total" class="savings-badge"></span>
+                </div>
+                <div id="deals-feed"></div>
             </div>
 
-            <!-- CENTER COLUMN -->
-            <div id="col-center">
-
-                <!-- fixed top header - height only -->
-                <div id="center-top-header">
-                    <span id="chain-height-label">HEIGHT</span>
-                    <span id="chain-height">-</span>
+            <div id="view-my-claims" class="view">
+                <div class="view-header">
+                    <span class="view-title">My Claims</span>
+                    <span id="claims-total-saved" class="savings-badge"></span>
                 </div>
-
-                <!-- WORKSPACE section -->
-                <div class="center-section" id="section-workspace">
-                    <div class="center-section-header">
-                        <span class="center-section-title">WORKSPACE</span>
-                        <button class="btn-section-toggle" id="btn-toggle-workspace">EXPAND</button>
-                    </div>
-                    <div class="center-section-body hidden" id="body-workspace">
-                        <div id="workspace-tabs">
-                            <button class="workspace-tab active" data-tab="contacts">CONTACTS</button>
-                            <button class="workspace-tab" data-tab="import-wallet">IMPORT WALLET</button>
-                            <button class="workspace-tab" data-tab="create-wallet">CREATE WALLET</button>
-                        </div>
-                        <div id="workspace-body"></div>
-                    </div>
-                </div>
-
-                <!-- EVENTS section -->
-                <div class="center-section" id="section-events">
-                    <div class="center-section-header">
-                        <span class="center-section-title">EVENTS</span>
-                        <button class="btn-section-toggle" id="btn-toggle-events">EXPAND</button>
-                    </div>
-                    <div class="center-section-body hidden" id="body-events">
-                        <div id="col-entries-chain"></div>
-                    </div>
-                </div>
-
+                <div id="my-claims-list"></div>
             </div>
 
-            <!-- RIGHT COLUMN -->
-            <div class="wallet-column" id="col-right">
-                <div class="col-wallets" id="wallets-right"></div>
+            <div id="view-profile" class="view">
+                <div class="view-header">
+                    <span class="view-title">My Profile</span>
+                </div>
+                <div id="profile-content"></div>
             </div>
 
+            <!-- BUSINESS VIEWS -->
+            <div id="view-biz-deals" class="view">
+                <div class="view-header">
+                    <span class="view-title">My Deals</span>
+                    <button id="btn-post-deal" class="btn-action-sm">+ POST DEAL</button>
+                </div>
+                <div id="biz-deals-list"></div>
+            </div>
+
+            <div id="view-biz-claims" class="view">
+                <div class="view-header">
+                    <span class="view-title">Claims</span>
+                </div>
+                <div id="biz-claims-list"></div>
+            </div>
+
+            <div id="view-biz-scanner" class="view">
+                <div class="view-header">
+                    <span class="view-title">Verify Member</span>
+                </div>
+                <div id="scanner-content">
+                    <div id="scanner-input-wrap">
+                        <input
+                            id="scanner-wallet-input"
+                            type="text"
+                            placeholder="Paste member wallet address"
+                            autocomplete="off"
+                        >
+                        <button id="btn-verify-member">VERIFY</button>
+                    </div>
+                    <div id="scanner-result"></div>
+                </div>
+            </div>
+
+            <!-- ADMIN VIEWS -->
+            <div id="view-admin-members" class="view">
+                <div class="view-header">
+                    <span class="view-title">Members</span>
+                    <span id="admin-members-count" class="count-badge"></span>
+                </div>
+                <div id="admin-members-list"></div>
+            </div>
+
+            <div id="view-admin-businesses" class="view">
+                <div class="view-header">
+                    <span class="view-title">Businesses</span>
+                    <span id="admin-biz-count" class="count-badge"></span>
+                </div>
+                <div id="admin-biz-list"></div>
+            </div>
+
+            <div id="view-admin-deals" class="view">
+                <div class="view-header">
+                    <span class="view-title">All Deals</span>
+                    <span id="admin-deals-count" class="count-badge"></span>
+                </div>
+                <div id="admin-deals-list"></div>
+            </div>
+
+        </main>
+
+        <!-- BOTTOM NAV -->
+        <nav id="bottom-nav"></nav>
+
+    </div>
+
+    <!-- =====================================================================
+         MODALS — display:none in CSS, JS sets display:flex to open
+    ====================================================================== -->
+
+    <div id="modal-claim" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Claim This Deal?</div>
+            <div id="modal-claim-body"></div>
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-claim-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-claim-confirm">CLAIM</button>
+            </div>
         </div>
     </div>
 
-    <!-- PIN OVERLAY -->
-    <div id="pin-overlay" class="hidden">
-        <div id="pin-box">
-            <div id="pin-title">ENTER WALLET PIN</div>
-            <input class="modal-input" id="pin-input" type="password" placeholder="PIN">
-            <div id="pin-controls">
-                <button id="pin-cancel" class="btn-compose">CANCEL</button>
-                <button id="pin-confirm" class="btn-compose btn-send">UNLOCK</button>
+    <div id="modal-post-deal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">Post a Deal</div>
+            <input class="modal-input" id="post-deal-title" type="text" placeholder="Deal headline">
+            <textarea class="modal-input" id="post-deal-description" placeholder="Deal description" rows="3"></textarea>
+            <input class="modal-input" id="post-deal-value" type="number" placeholder="CAD value (e.g. 10)">
+            <input class="modal-input" id="post-deal-claims-max" type="number" placeholder="Max claims (0 = unlimited)">
+            <div class="modal-controls">
+                <button class="btn-modal-cancel" id="btn-post-deal-cancel">CANCEL</button>
+                <button class="btn-modal-confirm" id="btn-post-deal-confirm">POST</button>
             </div>
         </div>
     </div>
@@ -108,6 +188,6 @@
 </html>
 <!-- =============================================================================
      File: static/index.html
-     Project: snap-coin-msg
-     Created: 2026-03-19 | Updated: 2026-03-20
+     Tree: snap-coin-deals/static/index.html
+     Created: 2026-04-02 | Updated: 2026-04-02 | Version: 0.2.0
 ============================================================================= -->
