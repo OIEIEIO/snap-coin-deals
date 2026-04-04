@@ -7,5 +7,14 @@
     "starter_snap": 100.0,
     "enrolled_at": "2026-04-04T04:06:15.559161809+00:00",
     "active": true
+  },
+  {
+    "id": "member_1775291546130",
+    "wallet": "39c3ktmvwon4hv69lggqe8wkxi4ji6ne49stptg7ok5010vwkm",
+    "name": "Bob",
+    "role": "member",
+    "starter_snap": 100.0,
+    "enrolled_at": "2026-04-04T08:32:26.149705907+00:00",
+    "active": true
   }
 ]

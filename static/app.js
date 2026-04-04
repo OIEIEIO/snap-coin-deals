@@ -2,7 +2,7 @@
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
 // Description: SNAP Deals frontend — auth, member, business, admin views
-// Version: 1.5.0
+// Version: 1.6.0
 // Comments: Fixed hidden/active class conflict — show/hide use display directly
 //           Role-based views — member | business | admin
 //           Token stored in sessionStorage only — cleared on tab close
@@ -1102,13 +1102,17 @@ async function submitEnrollMember() {
             wallet: memberAddress,
         });
 
-        // step 3 — send starter SNAP from admin wallet to member wallet
-        await POST('/api/wallets/send-snap', {
-            from_wallet_id: adminWalletId,
-            to_address:     memberAddress,
-            amount:         starterSnap,
-            pin,
-        });
+        // step 3 — send starter SNAP — non-fatal, member is enrolled even if send fails
+        try {
+            await POST('/api/wallets/send-snap', {
+                from_wallet_id: adminWalletId,
+                to_address:     memberAddress,
+                amount:         starterSnap,
+                pin,
+            });
+        } catch (sendErr) {
+            console.warn('SNAP send failed after member enroll:', sendErr.message);
+        }
 
         closeEnrollMemberModal();
         showEnrollResult(name, memberAddress, starterSnap);
@@ -1506,14 +1510,27 @@ async function submitEnrollBusiness() {
             onboarding_fee: onboardingFee,
         });
 
+        if (!bizRes.success) {
+            errEl.textContent   = bizRes.message || 'Enrollment failed';
+            errEl.style.display = 'block';
+            btn.textContent = 'ENROLL';
+            btn.disabled    = false;
+            return;
+        }
+
         // step 2 — send onboarding fee SNAP from admin wallet to business wallet
+        // non-fatal — business is enrolled even if SNAP send fails
         if (onboardingFee > 0) {
-            await POST('/api/wallets/send-snap', {
-                from_wallet_id: adminWalletId,
-                to_address:     bizRes.wallet,
-                amount:         onboardingFee,
-                pin,
-            });
+            try {
+                await POST('/api/wallets/send-snap', {
+                    from_wallet_id: adminWalletId,
+                    to_address:     bizRes.wallet,
+                    amount:         onboardingFee,
+                    pin,
+                });
+            } catch (sendErr) {
+                console.warn('SNAP send failed after enrollment:', sendErr.message);
+            }
         }
 
         closeEnrollBusinessModal();
@@ -1705,5 +1722,5 @@ document.getElementById('modal-enroll-result')
 // =============================================================================
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
-// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.5.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.6.0
 // =============================================================================
