@@ -2,7 +2,7 @@
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
 // Description: SNAP Deals frontend — auth, member, business, admin views
-// Version: 1.7.0
+// Version: 1.8.0
 // Comments: Fixed hidden/active class conflict — show/hide use display directly
 //           Role-based views — member | business | admin
 //           Token stored in sessionStorage only — cleared on tab close
@@ -18,8 +18,6 @@
 //           frontend sends onboarding_fee SNAP from admin wallet to deal wallet
 //           Added: admin business cards — expandable, suspend, edit modal
 //           Added: admin deal cards — expandable, cancel, edit modal, shows all deals
-//           Added: QR scan bridge — btn-scan-wallet calls Android.scanWalletQR()
-//                  window.receiveWalletScan(address) receives result from Android
 // =============================================================================
 
 'use strict';
@@ -152,19 +150,24 @@ async function submitWalletAddress() {
     }
 }
 
+
 // -----------------------------------------------------------------------------
-// QR scan bridge — called by Android after camera scan
+// Android callbacks
 // -----------------------------------------------------------------------------
 
-// Android calls this function with the scanned wallet address.
-// window scope required so evaluateJavascript can reach it.
-window.receiveWalletScan = function(address) {
-    const input = document.getElementById('login-wallet-input');
-    if (!input) return;
-    input.value = address.trim();
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    // auto-submit after a short delay so user can see the filled value
-    setTimeout(submitWalletAddress, 300);
+// Called after Android.verifyBeforeClaim() completes
+window.onVerifyResult = function(ok) {
+    if (ok) {
+        doConfirmClaim();
+    } else {
+        const btn = document.getElementById('btn-claim-confirm');
+        if (btn) { btn.textContent = 'CLAIM'; btn.disabled = false; }
+    }
+};
+
+// Called after Android.changePIN() completes
+window.onChangePinResult = function(ok) {
+    if (ok) alert('PIN changed successfully.');
 };
 
 // -----------------------------------------------------------------------------
@@ -466,6 +469,25 @@ async function confirmClaim() {
     if (!deal) return;
 
     const btn = document.getElementById('btn-claim-confirm');
+    btn.textContent = 'VERIFYING…';
+    btn.disabled    = true;
+
+    // inside Android app — require biometric/PIN before claiming
+    if (window.Android && typeof window.Android.verifyBeforeClaim === 'function') {
+        window.Android.verifyBeforeClaim();
+        // result returns via window.onVerifyResult(ok)
+        return;
+    }
+
+    // browser fallback — proceed directly
+    await doConfirmClaim();
+}
+
+async function doConfirmClaim() {
+    const { deal } = state.pendingClaim || {};
+    if (!deal) return;
+
+    const btn = document.getElementById('btn-claim-confirm');
     btn.textContent = 'CLAIMING…';
     btn.disabled    = true;
 
@@ -634,6 +656,14 @@ async function loadProfile() {
         totalSaved     = res.total_value || 0;
     } catch {}
 
+    // Android-only account buttons
+    const androidButtons = window.Android ? `
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+            <button class="btn-modal-cancel" id="btn-profile-change-pin">🔑 CHANGE PIN</button>
+            <button class="btn-modal-cancel" id="btn-profile-lock">🔒 LOCK APP</button>
+        </div>
+    ` : '';
+
     content.innerHTML = `
         <div class="profile-hero">
             <div class="profile-avatar">${avatarInitials(memberName)}</div>
@@ -685,7 +715,17 @@ async function loadProfile() {
                 <div class="metric-label">Total Saved</div>
             </div>
         </div>
+
+        ${androidButtons}
     `;
+
+    // wire Android buttons after DOM is set
+    if (window.Android) {
+        document.getElementById('btn-profile-change-pin')
+            ?.addEventListener('click', () => window.Android.changePIN());
+        document.getElementById('btn-profile-lock')
+            ?.addEventListener('click', () => window.Android.lockApp());
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1602,12 +1642,9 @@ document.getElementById('btn-login-wallet')
 document.getElementById('login-wallet-input')
     .addEventListener('keydown', e => { if (e.key === 'Enter') submitWalletAddress(); });
 
-// QR scan button — calls Android JS interface if available, no-op on desktop
-document.getElementById('btn-scan-wallet')
+document.getElementById('btn-lock')
     .addEventListener('click', () => {
-        if (window.Android && typeof window.Android.scanWalletQR === 'function') {
-            window.Android.scanWalletQR();
-        }
+        if (window.Android && typeof window.Android.lockApp === 'function') window.Android.lockApp();
     });
 
 document.getElementById('btn-logout')
@@ -1748,5 +1785,5 @@ document.getElementById('modal-enroll-result')
 // =============================================================================
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
-// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.7.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.8.0
 // =============================================================================
