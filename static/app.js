@@ -887,7 +887,7 @@ async function verifyMember() {
 
 async function openPostDealModal() {
     // populate business selector
-    const sel = document.getElementById('post-deal-business-id');
+    const sel = document.getElementById('post-deal-business');
     sel.innerHTML = '<option value="">Select business…</option>';
     try {
         const res = await GET('/api/businesses/all');
@@ -907,20 +907,20 @@ function closePostDealModal() {
     hide('modal-post-deal');
     ['post-deal-title','post-deal-description','post-deal-value',
      'post-deal-claims-max','post-deal-onboarding-fee',
-     'post-deal-admin-wallet-id','post-deal-pin']
+     'post-deal-admin-wallet-id','post-deal-admin-pin']
         .forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('post-deal-error').style.display = 'none';
 }
 
 async function submitPostDeal() {
-    const businessId    = document.getElementById('post-deal-business-id').value.trim();
+    const businessId    = document.getElementById('post-deal-business').value.trim();
     const title         = document.getElementById('post-deal-title').value.trim();
     const desc          = document.getElementById('post-deal-description').value.trim();
     const cadValue      = parseFloat(document.getElementById('post-deal-value').value);
     const claimsMax     = parseInt(document.getElementById('post-deal-claims-max').value) || 0;
     const onboardingFee = parseFloat(document.getElementById('post-deal-onboarding-fee').value);
     const adminWalletId = document.getElementById('post-deal-admin-wallet-id').value.trim();
-    const pin           = document.getElementById('post-deal-pin').value.trim();
+    const pin           = document.getElementById('post-deal-admin-pin').value.trim();
     const errEl         = document.getElementById('post-deal-error');
 
     errEl.style.display = 'none';
