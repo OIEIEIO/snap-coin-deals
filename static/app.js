@@ -676,7 +676,6 @@ async function loadProfile() {
     const androidButtons = window.Android ? `
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
             <button class="btn-modal-cancel" id="btn-profile-change-pin">🔑 CHANGE PIN</button>
-            <button class="btn-modal-cancel" id="btn-profile-lock">🔒 LOCK APP</button>
         </div>
     ` : '';
 
