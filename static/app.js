@@ -222,16 +222,22 @@ const NAV_CONFIG = {
         { id: 'deals',     icon: '🏷️', label: 'Deals'   },
         { id: 'my-claims', icon: '✅',  label: 'Claims'  },
         { id: 'profile',   icon: '👤',  label: 'Profile' },
+        { id: 'lock',      icon: '🔒',  label: 'Lock',   action: true },
+        { id: 'logout',    icon: '⏻',   label: 'Logout', action: true },
     ],
     business: [
         { id: 'biz-deals',   icon: '📋', label: 'My Deals' },
         { id: 'biz-claims',  icon: '📥', label: 'Claims'   },
         { id: 'biz-scanner', icon: '🔍', label: 'Verify'   },
+        { id: 'lock',        icon: '🔒', label: 'Lock',   action: true },
+        { id: 'logout',      icon: '⏻',  label: 'Logout', action: true },
     ],
     admin: [
         { id: 'admin-members',    icon: '👥', label: 'Members'    },
         { id: 'admin-businesses', icon: '🏪', label: 'Businesses' },
         { id: 'admin-deals',      icon: '🏷️', label: 'Deals'      },
+        { id: 'lock',             icon: '🔒', label: 'Lock',   action: true },
+        { id: 'logout',           icon: '⏻',  label: 'Logout', action: true },
     ],
 };
 
@@ -240,14 +246,24 @@ function renderNav() {
     const tabs = NAV_CONFIG[state.role] || [];
 
     nav.innerHTML = tabs.map(t => `
-        <button class="nav-tab" data-view="${t.id}">
+        <button class="nav-tab" data-view="${t.id}" data-action="${t.action || false}">
             <span class="nav-icon">${t.icon}</span>
             <span>${t.label}</span>
         </button>
     `).join('');
 
     nav.querySelectorAll('.nav-tab').forEach(btn => {
-        btn.addEventListener('click', () => switchView(btn.dataset.view));
+        if (btn.dataset.action === 'true') {
+            btn.addEventListener('click', () => {
+                if (btn.dataset.view === 'lock') {
+                    if (window.Android && typeof window.Android.lockApp === 'function') window.Android.lockApp();
+                } else if (btn.dataset.view === 'logout') {
+                    logout();
+                }
+            });
+        } else {
+            btn.addEventListener('click', () => switchView(btn.dataset.view));
+        }
     });
 }
 
@@ -1642,13 +1658,7 @@ document.getElementById('btn-login-wallet')
 document.getElementById('login-wallet-input')
     .addEventListener('keydown', e => { if (e.key === 'Enter') submitWalletAddress(); });
 
-document.getElementById('btn-lock')
-    .addEventListener('click', () => {
-        if (window.Android && typeof window.Android.lockApp === 'function') window.Android.lockApp();
-    });
-
-document.getElementById('btn-logout')
-    .addEventListener('click', logout);
+// Lock and Logout handled via bottom nav action buttons
 
 document.getElementById('btn-claim-cancel')
     .addEventListener('click', closeClaimModal);
