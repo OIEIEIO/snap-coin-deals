@@ -31,9 +31,6 @@ use crate::wallet::pin::encrypt_key;
 const DEALS_FILE:   &str = "config/deals.json";
 const WALLETS_FILE: &str = "config/wallets.json";
 
-// DEAL_POSTED opcode amount — family 20 opcode 0001 — 0.02000010 in atomic units
-const DEAL_POSTED_AMOUNT: u64 = 2_000_010;
-
 // -----------------------------------------------------------------------------
 // Data model
 // -----------------------------------------------------------------------------
@@ -205,8 +202,6 @@ pub async fn post_deal(
     let deal_wallet_pin = std::env::var("DEAL_WALLET_PIN")
         .map_err(|_| { tracing::error!("DEAL_WALLET_PIN not set"); StatusCode::INTERNAL_SERVER_ERROR })?;
 
-    let admin_wallet_id = std::env::var("ADMIN_WALLET_ID")
-        .map_err(|_| { tracing::error!("ADMIN_WALLET_ID not set"); StatusCode::INTERNAL_SERVER_ERROR })?;
 
     // --- generate deal wallet keypair ---
     let private  = Private::new_random();
@@ -260,27 +255,8 @@ pub async fn post_deal(
     deals.push(deal);
     save_deals(&deals)?;
 
-    // --- get admin wallet address for DEAL_POSTED opcode target ---
-    let wallets_fresh = WalletsFile::load(WALLETS_FILE)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let admin_wallet = wallets_fresh.get(&admin_wallet_id)
-        .ok_or_else(|| { tracing::error!("admin wallet {} not found", admin_wallet_id); StatusCode::INTERNAL_SERVER_ERROR })?;
-
-    let admin_public = Public::new_from_base36(&admin_wallet.address)
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // --- fire DEAL_POSTED opcode from deal wallet to admin wallet ---
-    let deal_private = Private::new_from_base36(&priv_b36)
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    state.outbound
-        .submit_withdrawal(vec![(admin_public, DEAL_POSTED_AMOUNT)], deal_private)
-        .await
-        .map_err(|e| { tracing::error!("DEAL_POSTED opcode failed: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
-
     tracing::info!(
-        "deal posted: {} onboarding_fee={} SNAP wallet={} DEAL_POSTED opcode fired",
+        "deal posted: {} onboarding_fee={} SNAP wallet={}",
         deal_id, onboarding_fee, &address[..8]
     );
 
