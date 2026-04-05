@@ -2,7 +2,7 @@
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
 // Description: SNAP Deals frontend — auth, member, business, admin views
-// Version: 1.6.0
+// Version: 1.7.0
 // Comments: Fixed hidden/active class conflict — show/hide use display directly
 //           Role-based views — member | business | admin
 //           Token stored in sessionStorage only — cleared on tab close
@@ -18,6 +18,8 @@
 //           frontend sends onboarding_fee SNAP from admin wallet to deal wallet
 //           Added: admin business cards — expandable, suspend, edit modal
 //           Added: admin deal cards — expandable, cancel, edit modal, shows all deals
+//           Added: QR scan bridge — btn-scan-wallet calls Android.scanWalletQR()
+//                  window.receiveWalletScan(address) receives result from Android
 // =============================================================================
 
 'use strict';
@@ -148,6 +150,21 @@ async function submitWalletAddress() {
         show(err);
     }
 }
+
+// -----------------------------------------------------------------------------
+// QR scan bridge — called by Android after camera scan
+// -----------------------------------------------------------------------------
+
+// Android calls this function with the scanned wallet address.
+// window scope required so evaluateJavascript can reach it.
+window.receiveWalletScan = function(address) {
+    const input = document.getElementById('login-wallet-input');
+    if (!input) return;
+    input.value = address.trim();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    // auto-submit after a short delay so user can see the filled value
+    setTimeout(submitWalletAddress, 300);
+};
 
 // -----------------------------------------------------------------------------
 // Logout
@@ -1584,6 +1601,14 @@ document.getElementById('btn-login-wallet')
 document.getElementById('login-wallet-input')
     .addEventListener('keydown', e => { if (e.key === 'Enter') submitWalletAddress(); });
 
+// QR scan button — calls Android JS interface if available, no-op on desktop
+document.getElementById('btn-scan-wallet')
+    .addEventListener('click', () => {
+        if (window.Android && typeof window.Android.scanWalletQR === 'function') {
+            window.Android.scanWalletQR();
+        }
+    });
+
 document.getElementById('btn-logout')
     .addEventListener('click', logout);
 
@@ -1722,5 +1747,5 @@ document.getElementById('modal-enroll-result')
 // =============================================================================
 // File: static/app.js
 // Tree: snap-coin-deals/static/app.js
-// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.6.0
+// Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.7.0
 // =============================================================================

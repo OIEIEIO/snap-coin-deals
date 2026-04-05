@@ -2,7 +2,7 @@
    File: static/app.css
    Tree: snap-coin-deals/static/app.css
    Description: SNAP Deals — maritime dark theme, mobile-first
-   Version: 0.7.0
+   Version: 0.8.0
    Comments: Removed class-based screen show/hide — JS controls display directly
              No .hidden class on screens or views — style.display used throughout
              Deep harbour palette, sea glass teal accent
@@ -15,6 +15,8 @@
              Added: profile hero, metrics grid
              Added: login wallet step styles
              Added: enroll member modal styles, enroll result styles
+             Added: wallet-input-wrap — QR scan button inside wallet field
+             Added: safe-area-inset padding on header and bottom-nav
 ============================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
@@ -93,6 +95,8 @@ body::before {
     align-items: center;
     justify-content: center;
     padding: 24px;
+    padding-top: calc(24px + env(safe-area-inset-top));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 #screen-app {
@@ -156,7 +160,7 @@ body::before {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 14px 16px;
+    padding: 14px 48px 14px 16px;
     color: var(--text);
     font-family: var(--font-mono);
     font-size: 13px;
@@ -164,8 +168,42 @@ body::before {
     transition: border-color 0.2s;
 }
 
+#login-token-input {
+    padding-right: 16px;
+}
+
 #login-token-input:focus,
 #login-wallet-input:focus { border-color: var(--accent-dim); }
+
+/* wallet input wrapper — positions QR button inside the field */
+.wallet-input-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.wallet-input-wrap #login-wallet-input {
+    width: 100%;
+}
+
+#btn-scan-wallet {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 6px;
+    color: var(--accent-dim);
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#btn-scan-wallet:active { color: var(--accent); }
 
 #btn-login,
 #btn-login-wallet {
@@ -217,12 +255,14 @@ body::before {
 ============================================================================= */
 
 #header {
-    height: var(--header-h);
+    height: calc(var(--header-h) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    padding: 0 16px;
+    padding-left: 16px;
+    padding-right: 16px;
     gap: 12px;
     flex-shrink: 0;
     position: relative;
@@ -278,7 +318,7 @@ body::before {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 16px;
-    padding-bottom: calc(var(--nav-h) + 16px);
+    padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
     position: relative;
     z-index: 1;
 }
@@ -689,7 +729,8 @@ body::before {
 ============================================================================= */
 
 #bottom-nav {
-    height: var(--nav-h);
+    height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
     background: var(--bg-panel);
     border-top: 1px solid var(--border);
     display: flex;
@@ -734,6 +775,7 @@ body::before {
     display: none;
     align-items: flex-end;
     padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
     backdrop-filter: blur(4px);
 }
 
@@ -913,5 +955,5 @@ body::before {
 /* =============================================================================
    File: static/app.css
    Tree: snap-coin-deals/static/app.css
-   Created: 2026-04-02 | Updated: 2026-04-03 | Version: 0.7.0
+   Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.8.0
 ============================================================================= */

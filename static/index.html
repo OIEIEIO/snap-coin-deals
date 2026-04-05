@@ -5,14 +5,16 @@
      Description: SNAP Deals — mobile-first maritime dark theme
                   No hidden classes on screens — JS controls display via style.display
                   Three views: member, business, admin
-     Version: 0.7.0
+     Version: 0.8.0
      Changes: Added wallet address step after member login
               Added enroll member modal for admin
+              Added QR scan button inside wallet input field
+              Added safe-area-inset viewport meta for Android notch/nav bar
 ============================================================================= -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SNAP Deals</title>
     <link rel="stylesheet" href="app.css">
 </head>
@@ -44,12 +46,15 @@
             <!-- Step 2: wallet address (member only) -->
             <div id="login-step-wallet" class="login-step" style="display:none">
                 <div id="login-wallet-hint">Enter your assigned wallet address</div>
-                <input
-                    id="login-wallet-input"
-                    type="text"
-                    placeholder="Your wallet address"
-                    autocomplete="off"
-                >
+                <div class="wallet-input-wrap">
+                    <input
+                        id="login-wallet-input"
+                        type="text"
+                        placeholder="Your wallet address"
+                        autocomplete="off"
+                    >
+                    <button id="btn-scan-wallet" title="Scan QR code">&#x1F4F7;</button>
+                </div>
                 <button id="btn-login-wallet">CONTINUE</button>
                 <div id="login-wallet-error">Wallet not found — please check your address</div>
             </div>
@@ -186,22 +191,44 @@
     </div>
 
     <!-- =====================================================================
-         MODAL — Post a deal
+         MODAL — Post deal (admin)
     ====================================================================== -->
     <div id="modal-post-deal" class="modal-overlay">
         <div class="modal-box">
-            <div class="modal-title">Post a Deal</div>
-            <select class="modal-input" id="post-deal-business-id">
+            <div class="modal-title">Post New Deal</div>
+
+            <select class="modal-input" id="post-deal-business">
                 <option value="">Select business…</option>
             </select>
-            <input class="modal-input" id="post-deal-title" type="text" placeholder="Deal headline">
-            <textarea class="modal-input" id="post-deal-description" placeholder="Deal description" rows="3"></textarea>
-            <input class="modal-input" id="post-deal-value" type="number" placeholder="CAD value (e.g. 10)">
-            <input class="modal-input" id="post-deal-claims-max" type="number" placeholder="Max claims (0 = unlimited)">
-            <input class="modal-input" id="post-deal-onboarding-fee" type="number" placeholder="Onboarding fee (SNAP)">
-            <input class="modal-input" id="post-deal-admin-wallet-id" type="text" placeholder="Admin wallet ID">
-            <input class="modal-input" id="post-deal-pin" type="password" placeholder="Wallet PIN">
-            <div id="post-deal-error" class="modal-error" style="display:none"></div>
+
+            <input class="modal-input" id="post-deal-title"
+                type="text" placeholder="Deal title">
+
+            <textarea class="modal-input" id="post-deal-description"
+                placeholder="Deal description" rows="3"></textarea>
+
+            <input class="modal-input" id="post-deal-value"
+                type="number" placeholder="CAD value e.g. 3" step="0.01">
+
+            <input class="modal-input" id="post-deal-expires"
+                type="date" placeholder="Expiry date">
+
+            <input class="modal-input" id="post-deal-claims-max"
+                type="number" placeholder="Max claims (0 = unlimited)">
+
+            <div class="modal-section-label">Deal wallet funding (SNAP)</div>
+            <input class="modal-input" id="post-deal-onboarding-fee"
+                type="number" placeholder="Onboarding fee (SNAP)">
+
+            <div class="modal-section-label">Admin wallet (funding source)</div>
+            <input class="modal-input" id="post-deal-admin-wallet-id"
+                type="text" placeholder="Admin wallet ID">
+
+            <input class="modal-input" id="post-deal-admin-pin"
+                type="password" placeholder="Admin wallet PIN">
+
+            <div id="post-deal-error" class="modal-error"></div>
+
             <div class="modal-controls">
                 <button class="btn-modal-cancel" id="btn-post-deal-cancel">CANCEL</button>
                 <button class="btn-modal-confirm" id="btn-post-deal-confirm">POST</button>
@@ -216,13 +243,9 @@
         <div class="modal-box">
             <div class="modal-title">Enroll New Member</div>
 
-            <input class="modal-input" id="enroll-name"
+            <input class="modal-input" id="enroll-member-name"
                 type="text" placeholder="Member name">
 
-            <input class="modal-input" id="enroll-starter-snap"
-                type="number" placeholder="Starter SNAP amount (e.g. 100)" value="100">
-
-            <div class="modal-section-label">Admin wallet (funding source)</div>
             <input class="modal-input" id="enroll-admin-wallet-id"
                 type="text" placeholder="Admin wallet ID (from wallets.json)">
 
@@ -405,5 +428,5 @@
 <!-- =============================================================================
      File: static/index.html
      Tree: snap-coin-deals/static/index.html
-     Created: 2026-04-02 | Updated: 2026-04-04 | Version: 1.1.0
+     Created: 2026-04-02 | Updated: 2026-04-04 | Version: 0.8.0
 ============================================================================= -->
