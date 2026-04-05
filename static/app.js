@@ -143,6 +143,7 @@ async function submitWalletAddress() {
 
         state.wallet = wallet;
         sessionStorage.setItem('snap_wallet', wallet);
+        if (window.Android && typeof window.Android.saveWallet === 'function') window.Android.saveWallet(wallet);
 
         await bootApp();
 
